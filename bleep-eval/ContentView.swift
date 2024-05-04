@@ -10,10 +10,17 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, Simon!")
+            Button(action: {
+                print("Start button tapped")
+                PeripheralManager.shared.start()
+            }) {
+                Text("Start")
+                    .font(.title)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
         }
         .padding()
     }

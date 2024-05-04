@@ -9,6 +9,9 @@ import SwiftUI
 
 @main
 struct bleep_evalApp: App {
+    
+    @StateObject var peripheralManager = PeripheralManager.shared
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

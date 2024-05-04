@@ -14,6 +14,7 @@
 		F4369EE42BE549E000852AEC /* bleep_evalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EE32BE549E000852AEC /* bleep_evalTests.swift */; };
 		F4369EEE2BE549E000852AEC /* bleep_evalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EED2BE549E000852AEC /* bleep_evalUITests.swift */; };
 		F4369EF02BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EEF2BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift */; };
+		F4F5517A2BE68726008A5860 /* PeripheralManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F551792BE68726008A5860 /* PeripheralManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +46,7 @@
 		F4369EED2BE549E000852AEC /* bleep_evalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalUITests.swift; sourceTree = "<group>"; };
 		F4369EEF2BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		F4711FBC2BE56443007FEACD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F4F551792BE68726008A5860 /* PeripheralManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeripheralManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +102,7 @@
 				F4369ED42BE549DF00852AEC /* ContentView.swift */,
 				F4369ED62BE549E000852AEC /* Assets.xcassets */,
 				F4369ED82BE549E000852AEC /* Preview Content */,
+				F4F551792BE68726008A5860 /* PeripheralManager.swift */,
 			);
 			path = "bleep-eval";
 			sourceTree = "<group>";
@@ -259,6 +262,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4F5517A2BE68726008A5860 /* PeripheralManager.swift in Sources */,
 				F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */,
 				F4369ED32BE549DF00852AEC /* bleep_evalApp.swift in Sources */,
 			);

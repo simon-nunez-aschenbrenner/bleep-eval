@@ -7,46 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F4369ED32BE549DF00852AEC /* bleep_evalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369ED22BE549DF00852AEC /* bleep_evalApp.swift */; };
+		F41241FE2BEA879A00B59628 /* CentralManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41241FD2BEA879A00B59628 /* CentralManagerDelegate.swift */; };
+		F41242052BEA980500B59628 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = F41242042BEA980500B59628 /* Logging */; };
+		F4369ED32BE549DF00852AEC /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369ED22BE549DF00852AEC /* App.swift */; };
 		F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369ED42BE549DF00852AEC /* ContentView.swift */; };
 		F4369ED72BE549E000852AEC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED62BE549E000852AEC /* Assets.xcassets */; };
 		F4369EDA2BE549E000852AEC /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED92BE549E000852AEC /* Preview Assets.xcassets */; };
-		F4369EE42BE549E000852AEC /* bleep_evalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EE32BE549E000852AEC /* bleep_evalTests.swift */; };
-		F4369EEE2BE549E000852AEC /* bleep_evalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EED2BE549E000852AEC /* bleep_evalUITests.swift */; };
-		F4369EF02BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369EEF2BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift */; };
-		F4F5517A2BE68726008A5860 /* PeripheralManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F551792BE68726008A5860 /* PeripheralManager.swift */; };
+		F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		F4369EE02BE549E000852AEC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F4369EC72BE549DF00852AEC /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = F4369ECE2BE549DF00852AEC;
-			remoteInfo = "bleep-eval";
-		};
-		F4369EEA2BE549E000852AEC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = F4369EC72BE549DF00852AEC /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = F4369ECE2BE549DF00852AEC;
-			remoteInfo = "bleep-eval";
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
+		F41241FD2BEA879A00B59628 /* CentralManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CentralManagerDelegate.swift; sourceTree = "<group>"; };
+		F41242062BEAAF4200B59628 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		F4369ECF2BE549DF00852AEC /* bleep-eval.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "bleep-eval.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		F4369ED22BE549DF00852AEC /* bleep_evalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalApp.swift; sourceTree = "<group>"; };
+		F4369ED22BE549DF00852AEC /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		F4369ED42BE549DF00852AEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F4369ED62BE549E000852AEC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F4369ED92BE549E000852AEC /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		F4369EDF2BE549E000852AEC /* bleep-evalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "bleep-evalTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		F4369EE32BE549E000852AEC /* bleep_evalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalTests.swift; sourceTree = "<group>"; };
-		F4369EE92BE549E000852AEC /* bleep-evalUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "bleep-evalUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		F4369EED2BE549E000852AEC /* bleep_evalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalUITests.swift; sourceTree = "<group>"; };
-		F4369EEF2BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bleep_evalUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		F4711FBC2BE56443007FEACD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		F4F551792BE68726008A5860 /* PeripheralManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeripheralManager.swift; sourceTree = "<group>"; };
+		F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeripheralManagerDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,20 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F4369EDC2BE549E000852AEC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F4369EE62BE549E000852AEC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				F41242052BEA980500B59628 /* Logging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,9 +43,8 @@
 		F4369EC62BE549DF00852AEC = {
 			isa = PBXGroup;
 			children = (
+				F41242062BEAAF4200B59628 /* README.md */,
 				F4369ED12BE549DF00852AEC /* bleep-eval */,
-				F4369EE22BE549E000852AEC /* bleep-evalTests */,
-				F4369EEC2BE549E000852AEC /* bleep-evalUITests */,
 				F4369ED02BE549DF00852AEC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +53,6 @@
 			isa = PBXGroup;
 			children = (
 				F4369ECF2BE549DF00852AEC /* bleep-eval.app */,
-				F4369EDF2BE549E000852AEC /* bleep-evalTests.xctest */,
-				F4369EE92BE549E000852AEC /* bleep-evalUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -98,11 +61,12 @@
 			isa = PBXGroup;
 			children = (
 				F4711FBC2BE56443007FEACD /* Info.plist */,
-				F4369ED22BE549DF00852AEC /* bleep_evalApp.swift */,
+				F4369ED22BE549DF00852AEC /* App.swift */,
 				F4369ED42BE549DF00852AEC /* ContentView.swift */,
 				F4369ED62BE549E000852AEC /* Assets.xcassets */,
 				F4369ED82BE549E000852AEC /* Preview Content */,
-				F4F551792BE68726008A5860 /* PeripheralManager.swift */,
+				F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */,
+				F41241FD2BEA879A00B59628 /* CentralManagerDelegate.swift */,
 			);
 			path = "bleep-eval";
 			sourceTree = "<group>";
@@ -113,23 +77,6 @@
 				F4369ED92BE549E000852AEC /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
-			sourceTree = "<group>";
-		};
-		F4369EE22BE549E000852AEC /* bleep-evalTests */ = {
-			isa = PBXGroup;
-			children = (
-				F4369EE32BE549E000852AEC /* bleep_evalTests.swift */,
-			);
-			path = "bleep-evalTests";
-			sourceTree = "<group>";
-		};
-		F4369EEC2BE549E000852AEC /* bleep-evalUITests */ = {
-			isa = PBXGroup;
-			children = (
-				F4369EED2BE549E000852AEC /* bleep_evalUITests.swift */,
-				F4369EEF2BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift */,
-			);
-			path = "bleep-evalUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -148,45 +95,12 @@
 			dependencies = (
 			);
 			name = "bleep-eval";
+			packageProductDependencies = (
+				F41242042BEA980500B59628 /* Logging */,
+			);
 			productName = "bleep-eval";
 			productReference = F4369ECF2BE549DF00852AEC /* bleep-eval.app */;
 			productType = "com.apple.product-type.application";
-		};
-		F4369EDE2BE549E000852AEC /* bleep-evalTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F4369EF62BE549E000852AEC /* Build configuration list for PBXNativeTarget "bleep-evalTests" */;
-			buildPhases = (
-				F4369EDB2BE549E000852AEC /* Sources */,
-				F4369EDC2BE549E000852AEC /* Frameworks */,
-				F4369EDD2BE549E000852AEC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				F4369EE12BE549E000852AEC /* PBXTargetDependency */,
-			);
-			name = "bleep-evalTests";
-			productName = "bleep-evalTests";
-			productReference = F4369EDF2BE549E000852AEC /* bleep-evalTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		F4369EE82BE549E000852AEC /* bleep-evalUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F4369EF92BE549E000852AEC /* Build configuration list for PBXNativeTarget "bleep-evalUITests" */;
-			buildPhases = (
-				F4369EE52BE549E000852AEC /* Sources */,
-				F4369EE62BE549E000852AEC /* Frameworks */,
-				F4369EE72BE549E000852AEC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				F4369EEB2BE549E000852AEC /* PBXTargetDependency */,
-			);
-			name = "bleep-evalUITests";
-			productName = "bleep-evalUITests";
-			productReference = F4369EE92BE549E000852AEC /* bleep-evalUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -201,14 +115,6 @@
 					F4369ECE2BE549DF00852AEC = {
 						CreatedOnToolsVersion = 15.3;
 					};
-					F4369EDE2BE549E000852AEC = {
-						CreatedOnToolsVersion = 15.3;
-						TestTargetID = F4369ECE2BE549DF00852AEC;
-					};
-					F4369EE82BE549E000852AEC = {
-						CreatedOnToolsVersion = 15.3;
-						TestTargetID = F4369ECE2BE549DF00852AEC;
-					};
 				};
 			};
 			buildConfigurationList = F4369ECA2BE549DF00852AEC /* Build configuration list for PBXProject "bleep-eval" */;
@@ -220,13 +126,14 @@
 				Base,
 			);
 			mainGroup = F4369EC62BE549DF00852AEC;
+			packageReferences = (
+				F41242032BEA980500B59628 /* XCRemoteSwiftPackageReference "swift-log" */,
+			);
 			productRefGroup = F4369ED02BE549DF00852AEC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				F4369ECE2BE549DF00852AEC /* bleep-eval */,
-				F4369EDE2BE549E000852AEC /* bleep-evalTests */,
-				F4369EE82BE549E000852AEC /* bleep-evalUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -241,20 +148,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F4369EDD2BE549E000852AEC /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F4369EE72BE549E000852AEC /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -262,43 +155,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F4F5517A2BE68726008A5860 /* PeripheralManager.swift in Sources */,
+				F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */,
 				F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */,
-				F4369ED32BE549DF00852AEC /* bleep_evalApp.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F4369EDB2BE549E000852AEC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F4369EE42BE549E000852AEC /* bleep_evalTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F4369EE52BE549E000852AEC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F4369EEE2BE549E000852AEC /* bleep_evalUITests.swift in Sources */,
-				F4369EF02BE549E000852AEC /* bleep_evalUITestsLaunchTests.swift in Sources */,
+				F4369ED32BE549DF00852AEC /* App.swift in Sources */,
+				F41241FE2BEA879A00B59628 /* CentralManagerDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		F4369EE12BE549E000852AEC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F4369ECE2BE549DF00852AEC /* bleep-eval */;
-			targetProxy = F4369EE02BE549E000852AEC /* PBXContainerItemProxy */;
-		};
-		F4369EEB2BE549E000852AEC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F4369ECE2BE549DF00852AEC /* bleep-eval */;
-			targetProxy = F4369EEA2BE549E000852AEC /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F4369EF12BE549E000852AEC /* Debug */ = {
@@ -432,11 +296,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "bleep-eval/Info.plist";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "bleep nutzt Bluetooth LE um verschlüsselte Nachrichten energiesparend mit anderen iPhones auszutauschen. Bitte erlaube diese Kommunikation dauerhaft, damit das Netzwerk bestehen kann und du Nachrichten auch dann empfangen kannst, wenn die App im Hintergrund läuft.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -462,11 +328,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "bleep-eval/Info.plist";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "bleep nutzt Bluetooth LE um verschlüsselte Nachrichten energiesparend mit anderen iPhones auszutauschen. Bitte erlaube diese Kommunikation dauerhaft, damit das Netzwerk bestehen kann und du Nachrichten auch dann empfangen kannst, wenn die App im Hintergrund läuft.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -477,82 +345,6 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		F4369EF72BE549E000852AEC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NNFJ6B47JZ;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "simon.bleep-evalTests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/bleep-eval.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/bleep-eval";
-			};
-			name = Debug;
-		};
-		F4369EF82BE549E000852AEC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NNFJ6B47JZ;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "simon.bleep-evalTests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/bleep-eval.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/bleep-eval";
-			};
-			name = Release;
-		};
-		F4369EFA2BE549E000852AEC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NNFJ6B47JZ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "simon.bleep-evalUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "bleep-eval";
-			};
-			name = Debug;
-		};
-		F4369EFB2BE549E000852AEC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NNFJ6B47JZ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "simon.bleep-evalUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "bleep-eval";
 			};
 			name = Release;
 		};
@@ -577,25 +369,26 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F4369EF62BE549E000852AEC /* Build configuration list for PBXNativeTarget "bleep-evalTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F4369EF72BE549E000852AEC /* Debug */,
-				F4369EF82BE549E000852AEC /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		F4369EF92BE549E000852AEC /* Build configuration list for PBXNativeTarget "bleep-evalUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F4369EFA2BE549E000852AEC /* Debug */,
-				F4369EFB2BE549E000852AEC /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F41242032BEA980500B59628 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F41242042BEA980500B59628 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F41242032BEA980500B59628 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F4369EC72BE549DF00852AEC /* Project object */;
 }

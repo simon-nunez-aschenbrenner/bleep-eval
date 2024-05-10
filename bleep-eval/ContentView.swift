@@ -6,37 +6,35 @@
 //
 
 import SwiftUI
+import Logging
+
+private let logger = Logger(label: "com.simon.bleep-eval.logger.view")
 
 struct ContentView: View {
     
-    @StateObject var peripheralManagerDelegate = PeripheralManagerDelegate()
-    @StateObject var centralManagerDelegate = CentralManagerDelegate()
+    var bluetoothManager = BluetoothManager()
     
     var body: some View {
         TabView {
-            PeripheralView (peripheralManagerDelegate: peripheralManagerDelegate)
+            PeripheralView (bluetoothManager: bluetoothManager)
                 .tabItem {
                     Label("Peripheral", systemImage: "tray.and.arrow.up.fill")
                 }
-                .onAppear(perform: peripheralManagerDelegate.startAdvertising)
-                .onDisappear(perform: peripheralManagerDelegate.stopAdvertising)
-            CentralView (peripheralDelegate: centralManagerDelegate.peripheralDelegate)
+            CentralView (bluetoothManager: bluetoothManager)
                 .tabItem {
                     Label("Central", systemImage: "tray.and.arrow.down.fill")
                 }
-                .onAppear(perform: centralManagerDelegate.startScan)
-                .onDisappear(perform: centralManagerDelegate.stopScan)
         }
     }
 }
 
 struct PeripheralView: View {
     
-    @ObservedObject var peripheralManagerDelegate: PeripheralManagerDelegate
+    var bluetoothManager: BluetoothManager!
     @State private var messageDraft: String = ""
 
-    func messageIsQueued() -> Bool {
-        return peripheralManagerDelegate.testMessage != nil
+    func valueIsSet() -> Bool {
+        return bluetoothManager.peripheralManagerDelegate.testMessage != nil
     }
     
     var body: some View {
@@ -47,35 +45,35 @@ struct PeripheralView: View {
                 .foregroundColor(.gray)
                 .padding()
             Spacer()
-            TextField("Enter message", text: $messageDraft)
+            TextField("Enter message to publish", text: $messageDraft)
                 .padding()
                 .overlay(
                     RoundedRectangle(cornerRadius: 10.0)
                         .strokeBorder(Color.black))
                 .onSubmit {
-                    peripheralManagerDelegate.testMessage = messageDraft
+                    bluetoothManager.publish(serviceUUID: nil, characteristicUUID: nil, message: messageDraft)
                     messageDraft = ""
                 }
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding()
             HStack {
-                Text(messageIsQueued() ? "Value: " : "No value")
+                Text(valueIsSet() ? "Value: " : "No value")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
                     .padding(.horizontal)
                 Spacer()
-                Text(peripheralManagerDelegate.testMessage ?? "")
+                Text(bluetoothManager.outgoingTestMessage ?? "")
                 Button(action: {
-                    peripheralManagerDelegate.testMessage = nil
+                    bluetoothManager.outgoingTestMessage = nil
                 }) {
                     Label(
                         title: { },
                         icon: { Image(systemName: "xmark.circle.fill").foregroundColor(Color.black) }
                     )
                 }
-                .opacity(messageIsQueued() ? 100 : 0)
+                .opacity(valueIsSet() ? 100 : 0)
                 .padding(.horizontal)
-                .disabled(!messageIsQueued())
+                .disabled(!valueIsSet())
             }
 //            Button(action: {
 //                peripheralManagerDelegate.startAdvertising()
@@ -96,7 +94,7 @@ struct PeripheralView: View {
 
 struct CentralView: View {
     
-    @ObservedObject var peripheralDelegate: PeripheralDelegate
+    var bluetoothManager: BluetoothManager!
     
     var body: some View {
         VStack {
@@ -106,23 +104,23 @@ struct CentralView: View {
                 .foregroundColor(.gray)
                 .padding()
             Spacer()
-//            Button(action: {
-//                centralManagerDelegate.startScan()
-//            }) {
-//                Text("Start scan")
-//                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
-//                    .padding()
-//                    .background(Color.black)
-//                    .foregroundColor(.white)
-//                    .cornerRadius(10)
-//            }
-//            .padding()
+            Button(action: {
+                bluetoothManager.subscribe(serviceUUID: nil, characteristicUUID: nil)
+            }) {
+                Text("Subscribe")
+                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+                    .padding()
+                    .background(Color.black)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .padding()
             HStack {
-                Text((peripheralDelegate.testMessage != nil) ? "Value: " : "No value")
+                Text((bluetoothManager.incomingTestMessage != nil) ? "Value: " : "No value")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
                     .padding(.horizontal)
                 Spacer()
-                Text(peripheralDelegate.testMessage ?? "")
+                Text(bluetoothManager.incomingTestMessage ?? "")
             }
             Spacer()
         }

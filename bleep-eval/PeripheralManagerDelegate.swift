@@ -22,7 +22,7 @@ class PeripheralManagerDelegate: NSObject, ObservableObject, CBPeripheralManager
     
     var testService: CBMutableService!
     var testCharacteristic: CBMutableCharacteristic!
-    var testMessage: String! {
+    @Published var testMessage: String? {
         didSet {
             updateTestMessage(for: testCharacteristic, onSubscribedCentrals: nil)
         }
@@ -31,11 +31,6 @@ class PeripheralManagerDelegate: NSObject, ObservableObject, CBPeripheralManager
     override init() {
         super.init()
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: "com.simon.bleep-eval.peripheral", CBPeripheralManagerOptionShowPowerAlertKey: true])
-        testService = CBMutableService(type: PeripheralManagerDelegate.testServiceUUID, primary: true)
-        testCharacteristic = CBMutableCharacteristic(type: PeripheralManagerDelegate.testCharacteristicUUID, properties: [.indicate], value: nil, permissions: [.readable])
-        testService.characteristics = [testCharacteristic]
-        peripheralManager.add(testService)
-        testMessage = "default"
         logger.debug("PeripheralManagerDelegate initialized")
     }
     
@@ -44,6 +39,10 @@ class PeripheralManagerDelegate: NSObject, ObservableObject, CBPeripheralManager
         switch peripheral.state {
         case .poweredOn:
             logger.info("\(#function): poweredOn")
+            testService = CBMutableService(type: PeripheralManagerDelegate.testServiceUUID, primary: true)
+            testCharacteristic = CBMutableCharacteristic(type: PeripheralManagerDelegate.testCharacteristicUUID, properties: [.indicate], value: nil, permissions: [.readable])
+            testService.characteristics = [testCharacteristic]
+            peripheralManager.add(testService)
             // startAdvertising()
         case .unknown: // TODO: handle
             logger.notice("\(#function): unknown")
@@ -63,7 +62,12 @@ class PeripheralManagerDelegate: NSObject, ObservableObject, CBPeripheralManager
     
     func startAdvertising() {
         peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [PeripheralManagerDelegate.testServiceUUID], CBAdvertisementDataLocalNameKey: PeripheralManagerDelegate.testAdvertisementKey])
-        logger.info("Advertising testService to centrals")
+        logger.info("Peripheral starts advertising testService to centrals")
+    }
+    
+    func stopAdvertising() {
+        peripheralManager.stopAdvertising()
+        logger.info("Peripheral stops advertising to centrals")
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
@@ -76,7 +80,7 @@ class PeripheralManagerDelegate: NSObject, ObservableObject, CBPeripheralManager
     }
     
     func updateTestMessage(for characteristic: CBMutableCharacteristic, onSubscribedCentrals centrals: [CBCentral]?) {
-        let data: Data! = testMessage.data(using: .utf8)
+        let data: Data = testMessage?.data(using: .utf8) ?? Data()
         self.peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: centrals)
         logger.info("Updating value of characteristic \(characteristic.uuid) to: \(String(describing: self.testMessage))")
     }

@@ -48,7 +48,12 @@ class CentralManagerDelegate: NSObject, ObservableObject, CBCentralManagerDelega
     
     func startScan() {
         centralManager.scanForPeripherals(withServices: [PeripheralManagerDelegate.testServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        logger.info("Scanning for peripherals with testService")
+        logger.info("Central starts scanning for peripherals with testService")
+    }
+    
+    func stopScan() {
+        centralManager.stopScan()
+        logger.info("Central stops scanning for peripherals with testService")
     }
     
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
@@ -80,6 +85,11 @@ class CentralManagerDelegate: NSObject, ObservableObject, CBCentralManagerDelega
 class PeripheralDelegate: NSObject, ObservableObject, CBPeripheralDelegate {
     
     @Published var testMessage: String?
+    
+    override init() {
+        super.init()
+        logger.debug("PeripheralDelegate initialized")
+    }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if (error != nil) {

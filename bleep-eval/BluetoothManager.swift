@@ -7,60 +7,44 @@
 
 import Foundation
 import CoreBluetooth
-import Logging
+import OSLog
 
-private let logger = Logger(label: "com.simon.bleep-eval.logger.bluetooth")
-
-let testPeripheralName: String = "bleep"
-let testServiceUUID = CBUUID(string: "d50cfc1b-9fc7-4f07-9fa0-fe7cd33f3e92")
-let testCharacteristicUUID = CBUUID(string: "f03a20be-b7e9-44cf-b156-685fe9762504")
-
-enum BluetoothMode : Int {
+public enum BluetoothMode : Int {
     case central = -1
     case undefined = 0
     case peripheral = 1
 }
 
-class BluetoothManager: NSObject, BluetoothPublisher, BluetoothSubscriber {
-    
-    private(set) var peripheralName: String!
-    private(set) var serviceUUID: CBUUID!
-    private(set) var characteristicUUID: CBUUID!
+struct BluetoothConstants {
+    static let testPeripheralName: String = "bleep"
+    static let testServiceUUID = CBUUID(string: "d50cfc1b-9fc7-4f07-9fa0-fe7cd33f3e92")
+    static let testCharacteristicUUID = CBUUID(string: "f03a20be-b7e9-44cf-b156-685fe9762504")
+}
+
+@Observable
+class BluetoothManager: NSObject {
     
     private(set) var peripheralManagerDelegate: PeripheralManagerDelegate!
     private(set) var centralManagerDelegate: CentralManagerDelegate!
     
-    var outgoingTestMessage: String? {
-        get {
-            return peripheralManagerDelegate.testMessage
-        }
-        set(newOutgoingTestMessage) {
-            peripheralManagerDelegate.testMessage = newOutgoingTestMessage
-        }
-    }
-    var incomingTestMessage: String? {
-        return centralManagerDelegate.testMessage
-    }
-    
     private(set) var mode: BluetoothMode! {
         didSet {
-            logger.debug("Mode set to \(String(describing: mode))")
+            Logger.bluetooth.info("BluetoothMode set to \(String(describing: self.mode))")
         }
     }
     
-    override init() {
-        super.init()
-        peripheralName = testPeripheralName
-        serviceUUID = testServiceUUID
-        characteristicUUID = testCharacteristicUUID
-        peripheralManagerDelegate = PeripheralManagerDelegate(bluetoothManager: self)
-        centralManagerDelegate = CentralManagerDelegate(bluetoothManager: self)
-        setMode()
-        logger.info("BluetoothManager initialized")
+    // MARK: initializing methods
+    
+    convenience override init() {
+        self.init(peripheralName: BluetoothConstants.testPeripheralName, serviceUUID: BluetoothConstants.testServiceUUID, characteristicUUID: BluetoothConstants.testCharacteristicUUID)
     }
     
-    private func setMode() {
+    init(peripheralName: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
+        super.init()
+        peripheralManagerDelegate = PeripheralManagerDelegate(bluetoothManager: self, name: peripheralName, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
+        centralManagerDelegate = CentralManagerDelegate(bluetoothManager: self, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
         setMode(to: nil)
+        Logger.bluetooth.debug("BluetoothManager initialized")
     }
     
     private func setMode(to mode: BluetoothMode?) {
@@ -79,41 +63,60 @@ class BluetoothManager: NSObject, BluetoothPublisher, BluetoothSubscriber {
         }
     }
     
-    func publish(serviceUUID: CBUUID?, characteristicUUID: CBUUID?, message: String) {
-        logger.debug("BluetoothManager.\(#function) called for service \(String(describing: serviceUUID)) and characteristic \(String(describing: characteristicUUID)) with message '\(message)'")
-        let serviceUUID = serviceUUID ?? self.serviceUUID
-        let characteristicUUID = characteristicUUID ?? self.characteristicUUID
-        mode.rawValue < 1 ? startPeripheralMode(peripheralName: self.peripheralName, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID) : ()
-        peripheralManagerDelegate.testMessage = message
+    // MARK: public methods
+
+    func publish(value: String?, serviceUUID: CBUUID?, characteristicUUID: CBUUID?) {
+        Logger.bluetooth.debug("BluetoothManager.\(#function) called for service \(String(describing: serviceUUID)) and characteristic \(String(describing: characteristicUUID)) with message '\(String(describing: value))'")
+        guard (characteristicUUID == nil || characteristicUUID!.uuidString == peripheralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
+            Logger.bluetooth.error("\(#function) called with mismatching characteristicUUID")
+            // peripheralManagerDelegate.characteristic = CBMutableCharacteristic(type: characteristicUUID!, properties: [.indicate], value: nil, permissions: [.readable])
+            // peripheralManagerDelegate.service!.characteristics = [peripheralManagerDelegate.characteristic!]
+            return
+        }
+        guard (serviceUUID == nil || serviceUUID!.uuidString == peripheralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
+            Logger.bluetooth.error("\(#function) called with mismatching serviceUUID")
+            // peripheralManagerDelegate.peripheralManager.remove(peripheralManagerDelegate.service!)
+            // peripheralManagerDelegate.service = CBMutableService(type: serviceUUID!, primary: true)
+            // peripheralManagerDelegate.peripheralManager.add(peripheralManagerDelegate.service!)
+            return
+        }
+        if mode.rawValue < 1 {
+            centralManagerDelegate.stopScan()
+            setMode(to: .peripheral)
+        }
+        peripheralManagerDelegate.value = value ?? ""
+        if peripheralManagerDelegate.peripheralManager.state == .poweredOn && !peripheralManagerDelegate.peripheralManager.isAdvertising {
+            peripheralManagerDelegate.startAdvertising()
+        }
+        // else peripheralManagerDidUpdateState or willRestoreState will call startAdvertising
     }
         
     func subscribe(serviceUUID: CBUUID?, characteristicUUID: CBUUID?) {
-        logger.debug("BluetoothManager.\(#function) called for service \(String(describing: serviceUUID)) and characteristic \(String(describing: characteristicUUID))")
-        let serviceUUID = serviceUUID ?? self.serviceUUID
-        let characteristicUUID = characteristicUUID ?? self.characteristicUUID
-        // TODO: prepareScan
-        mode.rawValue > -1 ? startCentralMode() : ()
-    }
-        
-    private func startPeripheralMode(peripheralName: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
-        stopCentralMode()
-        setMode(to: .peripheral)
-        peripheralManagerDelegate.prepareAdvertising(peripheralName: peripheralName, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
-        peripheralManagerDelegate.startAdvertising()
+        Logger.bluetooth.debug("BluetoothManager.\(#function) called for service \(String(describing: serviceUUID)) and characteristic \(String(describing: characteristicUUID))")
+        guard (characteristicUUID == nil || characteristicUUID!.uuidString == centralManagerDelegate.characteristic!.uuid.uuidString) else {
+            Logger.bluetooth.error("\(#function) called with mismatching characteristicUUID")
+            // centralManagerDelegate.characteristic = CBMutableCharacteristic(type: characteristicUUID!, properties: [.indicate], value: nil, permissions: [.readable])
+            // centralManagerDelegate.service!.characteristics = [centralManagerDelegate.characteristic!]
+            return
+        }
+        guard (serviceUUID == nil || serviceUUID!.uuidString == centralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
+            Logger.bluetooth.error("\(#function) called with mismatching serviceUUID")
+            // centralManagerDelegate.service = CBMutableService(type: serviceUUID!, primary: true)
+            return
+        }
+        if mode.rawValue > -1 {
+            peripheralManagerDelegate.stopAdvertising()
+            setMode(to: .central)
+        }
+        if centralManagerDelegate.centralManager.state == .poweredOn && !centralManagerDelegate.centralManager.isScanning {
+            centralManagerDelegate.startScan()
+        }
+        // else centralManagerDidUpdateState or willRestoreState will call startScan
     }
     
-    private func startCentralMode() {
-        stopPeripheralMode()
-        setMode(to: .central)
-        centralManagerDelegate.startScan()
-    }
-    
-    private func stopPeripheralMode() {
+    func stop(){
+        Logger.bluetooth.debug("BluetoothManager.\(#function) called")
         peripheralManagerDelegate.stopAdvertising()
-        setMode(to: .undefined)
-    }
-    
-    private func stopCentralMode() {
         centralManagerDelegate.stopScan()
         setMode(to: .undefined)
     }

@@ -7,141 +7,163 @@
 
 import Foundation
 import CoreBluetooth
-import Logging
+import OSLog
 
-private let logger = Logger(label: "com.simon.bleep-eval.logger.central")
-
-class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, ObservableObject {
         
     unowned var bluetoothManager: BluetoothManager!
-    private(set) var centralManager: CBCentralManager!
-    private(set) var peripheral: CBPeripheral? // TODO: Needs to be a list
-    var testMessage: String? // TODO: Needs to be a queue
+    internal var centralManager: CBCentralManager!
+    internal var peripheral: CBPeripheral? // TODO: list
     
-    init(bluetoothManager: BluetoothManager) {
+    internal var service: CBMutableService! // TODO: list
+    internal var characteristic: CBMutableCharacteristic! // TODO: list
+    @Published internal var value: String? // TODO: queue for each characteristic?
+    
+    init(bluetoothManager: BluetoothManager, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
         super.init()
         self.bluetoothManager = bluetoothManager
         self.centralManager = CBCentralManager(delegate: self, queue: nil, options: [CBCentralManagerOptionRestoreIdentifierKey: "com.simon.bleep-eval.central", CBCentralManagerOptionShowPowerAlertKey: true])
-        logger.debug("CentralManagerDelegate initialized")
+        service = CBMutableService(type: serviceUUID, primary: true)
+        characteristic = CBMutableCharacteristic(type: characteristicUUID, properties: [.indicate], value: nil, permissions: [.readable])
+        service.characteristics = [characteristic]
+
+        Logger.bluetooth.debug("CentralManagerDelegate initialized")
     }
     
-    // TODO: prepareScan
-    
+    // MARK: public methods
+        
     func startScan() {
-        centralManager.scanForPeripherals(withServices: [bluetoothManager.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        logger.info("Central starts scanning for peripherals with testService")
+        Logger.bluetooth.debug("Central attempts to \(#function) for peripherals with service \(self.service!.uuid.uuidString)")
+        centralManager.scanForPeripherals(withServices: [service!.uuid], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
     }
     
     func stopScan() {
-        logger.debug("Attempting to \(#function)")
+        Logger.bluetooth.debug("Central attempts to \(#function)")
         if centralManager.isScanning {
             centralManager.stopScan()
-            logger.info("Central stops scanning for peripherals with testService")
+            !centralManager.isScanning ? Logger.bluetooth.info("Central stopped scanning") : Logger.bluetooth.error("Central did not stop scanning")
         } else {
-            logger.debug("Central was not scanning")
+            Logger.bluetooth.debug("Central was not scanning")
         }
     }
     
+    // MARK: delegate methods
+    
     internal func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        
         switch central.state {
         case .poweredOn:
-            logger.info("\(#function): poweredOn")
-            if bluetoothManager.mode == .central && !self.centralManager.isScanning {
+            Logger.bluetooth.info("\(#function): poweredOn")
+            if bluetoothManager.mode == .central && !centralManager.isScanning {
                 startScan()
             }
         case .unknown: // TODO: handle
-            logger.notice("\(#function): unknown")
+            Logger.bluetooth.notice("\(#function): unknown")
         case .resetting: // TODO: handle
-            logger.notice("\(#function): resetting")
+            Logger.bluetooth.notice("\(#function): resetting")
         case .unsupported: // TODO: handle
-            logger.error("\(#function): unsupported")
+            Logger.bluetooth.error("\(#function): unsupported")
         case .unauthorized: // TODO: handle
-            logger.error("\(#function): unauthorized")
-            logger.notice("CBManager authorization: \(CBManager.authorization)") // TODO: handle authorization cases
+            Logger.bluetooth.error("\(#function): unauthorized")
+            Logger.bluetooth.notice("CBManager authorization: \(String(describing: CBCentralManager.authorization))") // TODO: handle incl. authorization cases
         case .poweredOff: // TODO: handle
-            logger.error("\(#function): poweredOff")
+            Logger.bluetooth.error("\(#function): poweredOff")
         @unknown default: // TODO: handle
-            logger.error("\(#function): \(central.state) (not implemented)")
+            Logger.bluetooth.error("\(#function): \(central.state.rawValue) (not implemented)")
         }
     }
     
     internal func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
         self.centralManager = central
         central.delegate = self
-        logger.debug("In centralManager:willRestoreState()")
+        Logger.bluetooth.debug("In centralManager:willRestoreState()")
         if bluetoothManager.mode == .central && !self.centralManager.isScanning {
             startScan()
         }
     }
     
     internal func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        logger.info("Discovered peripheral \(peripheral.identifier) with advertisementData \(advertisementData) and RSSI \(RSSI)")
+        Logger.bluetooth.info("Discovered peripheral \(peripheral.identifier) with advertisementData \(advertisementData) and RSSI \(RSSI), attempting to connect")
         self.peripheral = peripheral
+        peripheral.delegate = self
         centralManager.stopScan()
         centralManager.connect(peripheral, options: nil)
     }
     
     internal func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        logger.info("Connected to peripheral \(peripheral.identifier)")
         assert(peripheral == self.peripheral)
-        peripheral.delegate = self
-        peripheral.discoverServices([bluetoothManager.serviceUUID]) // TODO: replace with discoverIncludedServices?
+        var serviceUUIDs: [CBUUID]? = nil
+        (self.service != nil) ? serviceUUIDs = [self.service!.uuid] : ()
+        Logger.bluetooth.info("Connected to peripheral \(peripheral.identifier), attempting to discoverServices \(String(describing:serviceUUIDs))")
+        peripheral.discoverServices(serviceUUIDs)
     }
     
     internal func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        if (error != nil) {
-            logger.error("didDiscoverServices of peripheral \(peripheral.identifier) returned error \(String(describing: error))")
-        }
-        guard let services = peripheral.services else {
-            logger.error("Peripheral's services property is nil")
-            return
-        }
-        logger.info("Checking discovered services on peripheral \(peripheral.identifier) for matches")
-        for service in services {
-            if service.uuid.uuidString == bluetoothManager.serviceUUID.uuidString {
-                peripheral.discoverCharacteristics([bluetoothManager.characteristicUUID], for: service)
+        if (error != nil) { // TODO: handle
+            Logger.bluetooth.fault("didDiscoverServices of peripheral \(peripheral.identifier) returned error \(String(describing: error))")
+        } else {
+            guard let discoveredServices = peripheral.services else { // TODO: handle
+                Logger.bluetooth.fault("Peripheral's services property is nil")
                 return
             }
+            // TODO: necessary?
+            Logger.bluetooth.info("Central comparing discovered services on peripheral \(peripheral.identifier) with own")
+            for service in discoveredServices {
+                Logger.bluetooth.debug("Checking service \(service.uuid)")
+                if (service.uuid.uuidString == self.service?.uuid.uuidString) {
+                    Logger.bluetooth.debug("It's the service we're looking for, attempting to discover its characteristics")
+                    var characteristicUUIDs: [CBUUID]? = nil
+                    (self.characteristic != nil) ? characteristicUUIDs = [self.characteristic!.uuid] : ()
+                    peripheral.discoverCharacteristics(characteristicUUIDs, for: service)
+                    return
+                }
+            }
+            // TODO: handle?
+            Logger.bluetooth.error("No matching service found on peripheral \(peripheral.identifier)")
         }
-        logger.warning("No matching service found on peripheral \(peripheral.identifier)")
     }
     
     internal func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        if (error != nil) {
-            logger.error("didDiscoverCharacteristicsFor service \(service.uuid) returned error \(String(describing: error))")
-        }
-        guard let characteristics = service.characteristics else {
-            logger.error("Services's characteristics property is nil")
-            return
-        }
-        logger.info("Checking discovered characteristics in service \(service.uuid) for matches")
-        for characteristic in characteristics {
-            if characteristic.uuid.uuidString == bluetoothManager.characteristicUUID.uuidString {
-                peripheral.setNotifyValue(true, for: characteristic)
+        if (error != nil) { // TODO: handle
+            Logger.bluetooth.fault("didDiscoverCharacteristicsFor service \(service.uuid) returned error \(String(describing: error))")
+        } else {
+            guard let discoveredCharacteristics = service.characteristics else { // TODO: handle
+                Logger.bluetooth.fault("Services's characteristics property is nil")
                 return
             }
+            Logger.bluetooth.info("Central comparing discovered characteristics in service \(service.uuid) with own")
+            for characteristic in discoveredCharacteristics {
+                Logger.bluetooth.debug("Checking characteristic \(characteristic.uuid)")
+                if (characteristic.uuid.uuidString == self.characteristic?.uuid.uuidString) {
+                    Logger.bluetooth.debug("It's the characteristic we're looking for, wating for value update")
+                    // peripheral.setNotifyValue(true, for: characteristic)
+                    // Logger.bluetooth.debug("setNotifyValue to true for characteristic \(characteristic)")
+                    return
+                }
+            }
+            // TODO: handle?
+            Logger.bluetooth.error("No matching characteristics found in service \(service.uuid)")
         }
-        logger.warning("No matching characteristics found in service \(service.uuid)")
     }
     
     internal func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if (error != nil) {
-            logger.error("didUpdateValueFor characteristic \(characteristic.uuid) returned error \(String(describing: error))")
-        }
-        if let data = characteristic.value {
-            logger.info("didUpdateValueFor characteristic \(characteristic.uuid): \(data)")
-            self.testMessage = String(data: data, encoding: .utf8)
-            logger.debug("Updated testMessage: \(String(describing: self.testMessage))")
+        if (error != nil) { // TODO: handle
+            Logger.bluetooth.fault("didUpdateValueFor characteristic \(characteristic.uuid) returned error \(String(describing: error))")
         } else {
-            logger.error("Unable to update value of characteristic \(characteristic.uuid)")
+            guard let data = characteristic.value else { // TODO: handle
+                Logger.bluetooth.fault("Characteristic's value property is nil")
+                return
+            }
+            Logger.bluetooth.info("Central received characteristic's \(characteristic.uuid) updated value: \(data)")
+            self.value = String(data: data, encoding: .utf8)
+            Logger.bluetooth.debug("Updated CentralManagerDelegate.value: \(String(describing: self.value))")
         }
     }
     
     internal func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: (any Error)?) {
-        if (error != nil) {
-            logger.error("didUpdateNotificationStateFor characteristic \(characteristic.uuid) returned error \(String(describing: error))")
+        if (error != nil) { // TODO: handle
+            Logger.bluetooth.fault("didUpdateNotificationStateFor characteristic \(characteristic.uuid) returned error \(String(describing: error))")
+        } else {
+            Logger.bluetooth.info("Peripheral \(peripheral.identifier) didUpdateNotificationStateFor characteristic \(characteristic.uuid)")
         }
-        logger.info("Peripheral \(peripheral.identifier) didUpdateNotificationStateFor characteristic \(characteristic.uuid)")
     }
 }

@@ -7,129 +7,134 @@
 
 import Foundation
 import CoreBluetooth
-import Logging
+import OSLog
 
-private let logger = Logger(label: "com.simon.bleep-eval.logger.peripheral")
-
-// TODO: Needs better solution for having name/service/characteristic properties set before advertising and updating
-
-class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
+class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, ObservableObject {
     
     unowned var bluetoothManager: BluetoothManager!
-    private(set) var peripheralManager: CBPeripheralManager!
-    private(set) var central: CBCentral?
+    internal var peripheralManager: CBPeripheralManager!
+    internal var central: CBCentral?
     
-    private(set) var service: CBMutableService? // TODO: Multiple services
-    private(set) var characteristic: CBMutableCharacteristic? // TODO: Multiple characteristics
-    var testMessage: String? { // TODO: Message queue
-        didSet {
-            updateTestMessage()
-        }
-    }
+    internal var name: String!
+    internal var service: CBMutableService! // TODO: list
+    internal var characteristic: CBMutableCharacteristic! // TODO: list
+    @Published internal var value: String? // TODO: queue for each characteristic?
     
-    init(bluetoothManager: BluetoothManager) {
+    // MARK: initializing methods
+    
+    init(bluetoothManager: BluetoothManager!, name: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
         super.init()
         self.bluetoothManager = bluetoothManager
         self.peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: "com.simon.bleep-eval.peripheral", CBPeripheralManagerOptionShowPowerAlertKey: true])
-        logger.debug("PeripheralManagerDelegate initialized")
-    }
-    
-    func prepareAdvertising(peripheralName: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
+        self.name = name
         self.service = CBMutableService(type: serviceUUID, primary: true)
         self.characteristic = CBMutableCharacteristic(type: characteristicUUID, properties: [.indicate], value: nil, permissions: [.readable])
-        self.service!.characteristics = [self.characteristic!]
-        peripheralManager.add(self.service!)
+        self.service.characteristics = [characteristic]
+        Logger.bluetooth.debug("PeripheralManagerDelegate initialized")
     }
     
+    // MARK: public methods
+    
     func startAdvertising() {
-        peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [bluetoothManager.serviceUUID!.uuidString], CBAdvertisementDataLocalNameKey: bluetoothManager.peripheralName!])
-        logger.info("Peripheral starts advertising to centrals")
+        Logger.bluetooth.debug("Peripheral attempts to \(#function) as \(self.name!) with service \(self.service!.uuid.uuidString) to centrals")
+        peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [service.uuid.uuidString], CBAdvertisementDataLocalNameKey: name])
     }
     
     func stopAdvertising() {
-        logger.debug("Attempting to \(#function)")
+        Logger.bluetooth.debug("Peripheral attempts to \(#function)")
         if peripheralManager.isAdvertising {
             peripheralManager.stopAdvertising()
-            logger.info("Peripheral stops advertising to centrals")
+            !peripheralManager.isAdvertising ? Logger.bluetooth.info("Peripheral stopped advertising") : Logger.bluetooth.error("Peripheral did not stop advertising")
         } else {
-            logger.debug("Peripheral was not advertising")
+            Logger.bluetooth.debug("Peripheral was not advertising")
         }
-        peripheralManager.removeAllServices()
-        logger.info("Peripheral removedAllServices")
     }
     
-    private func updateTestMessage() {
-        let data: Data = testMessage?.data(using: .utf8) ?? Data()
-        if (self.characteristic == nil) {
-            logger.error("Peripheral has no characteristic")
+    // MARK: private methods
+    
+    private func updateValue(of characteristic: CBCharacteristic?) {
+        let mutableCharacteristic: CBMutableCharacteristic
+        if characteristic == nil {
+            mutableCharacteristic = self.characteristic
         } else {
-            self.peripheralManager.updateValue(data, for: self.characteristic!, onSubscribedCentrals: nil)
-            logger.info("Updating value of characteristic \(characteristic!.uuid) to: \(String(describing: self.testMessage))")
+            mutableCharacteristic = characteristic as! CBMutableCharacteristic
+        }
+        Logger.bluetooth.debug("Peripheral attempts to \(#function) of \(mutableCharacteristic)")
+        let data: Data = value?.data(using: .utf8) ?? Data()
+        if peripheralManager.updateValue(data, for: mutableCharacteristic, onSubscribedCentrals: nil) {
+            Logger.bluetooth.info("Peripheral updated value of characteristic \(characteristic!.uuid) to \(String(describing: data))")
+        } else {
+            Logger.bluetooth.notice("Peripheral did not update value of characteristic \(characteristic!.uuid) to \(String(describing: data)), but will try again")
         }
     }
+    
+    // MARK: delegate methods
     
     internal func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        
         switch peripheral.state {
         case .poweredOn:
-            logger.info("\(#function): poweredOn")
-            if bluetoothManager.mode == .peripheral && !self.peripheralManager.isAdvertising {
+            Logger.bluetooth.info("\(#function): poweredOn")
+            peripheralManager.add(service!)
+            if bluetoothManager.mode == .peripheral && !peripheralManager.isAdvertising {
                 startAdvertising()
             }
         case .unknown: // TODO: handle
-            logger.notice("\(#function): unknown")
+            Logger.bluetooth.notice("\(#function): unknown")
         case .resetting: // TODO: handle
-            logger.notice("\(#function): resetting")
+            Logger.bluetooth.notice("\(#function): resetting")
         case .unsupported: // TODO: handle
-            logger.error("\(#function): unsupported")
+            Logger.bluetooth.error("\(#function): unsupported")
         case .unauthorized: // TODO: handle
-            logger.error("\(#function): unauthorized")
-            logger.notice("CBManager authorization: \(CBManager.authorization)") // TODO: handle authorization cases
+            Logger.bluetooth.error("\(#function): unauthorized")
+            Logger.bluetooth.notice("CBManager authorization: \(String(describing: CBPeripheralManager.authorization))") // TODO: handle incl. authorization cases
         case .poweredOff: // TODO: handle
-            logger.error("\(#function): poweredOff")
+            Logger.bluetooth.error("\(#function): poweredOff")
         @unknown default: // TODO: handle
-            logger.error("\(#function): \(peripheral.state) (not implemented)")
+            Logger.bluetooth.error("\(#function): \(peripheral.state.rawValue) (not implemented)")
         }
     }
     
     internal func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
         self.peripheralManager = peripheral
         peripheral.delegate = self
-        logger.debug("In peripheralManager:willRestoreState()")
-        if bluetoothManager.mode == .peripheral && !self.peripheralManager.isAdvertising {
+        Logger.bluetooth.debug("In peripheralManager:willRestoreState()")
+        // TODO: Readd service?
+        if bluetoothManager.mode == .peripheral && !peripheralManager.isAdvertising {
             startAdvertising()
         }
     }
     
     internal func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        logger.info("Central \(central.identifier) subscribed to characteristic \(characteristic.uuid)")
-        updateTestMessage()
+        Logger.bluetooth.info("Central \(central.identifier) subscribed to characteristic \(characteristic.uuid)")
+        updateValue(of: characteristic)
+        stopAdvertising()
     }
     
     internal func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        logger.info("Central \(central.identifier) unsubscribed from characteristic \(characteristic.uuid)")
+        Logger.bluetooth.info("Central \(central.identifier) unsubscribed from characteristic \(characteristic.uuid)")
+        if bluetoothManager.mode == .peripheral && !peripheralManager.isAdvertising {
+            startAdvertising()
+        }
     }
     
     internal func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
-        logger.warning("\(#function) called")
-        updateTestMessage()
+        Logger.bluetooth.notice("\(#function) called")
+        updateValue(of: nil)
     }
     
     internal func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: (any Error)?) {
         if (error != nil) {
-            logger.error("\(#function) returned error \(String(describing: error)) while starting to advertise")
-        }
-        else {
-            logger.info("\(#function) did start advertising")
+            Logger.bluetooth.fault("\(#function) returned error \(String(describing: error)) while starting to advertise")
+        } else {
+            Logger.bluetooth.info("\(#function) did start advertising")
         }
     }
     
     internal func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: (any Error)?) {
         if (error != nil) {
-            logger.error("\(#function) returned error \(String(describing: error)) while adding service \(service.uuid)")
-        }
-        else {
-            logger.info("\(#function) did add service \(service.uuid)")
+            Logger.bluetooth.fault("\(#function) returned error \(String(describing: error)) while adding service \(service.uuid)")
+        } else {
+            Logger.bluetooth.info("\(#function) did add service \(service.uuid)")
         }
     }
 }

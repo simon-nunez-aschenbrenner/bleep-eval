@@ -6,21 +6,19 @@
 //
 
 import SwiftUI
-import Logging
+import OSLog
 
-private let logger = Logger(label: "com.simon.bleep-eval.logger.view")
+// MARK: ContentView
 
 struct ContentView: View {
-    
-    var bluetoothManager = BluetoothManager()
-    
+        
     var body: some View {
         TabView {
-            PeripheralView (bluetoothManager: bluetoothManager)
+            PeripheralView ()
                 .tabItem {
                     Label("Peripheral", systemImage: "tray.and.arrow.up.fill")
                 }
-            CentralView (bluetoothManager: bluetoothManager)
+            CentralView ()
                 .tabItem {
                     Label("Central", systemImage: "tray.and.arrow.down.fill")
                 }
@@ -28,14 +26,13 @@ struct ContentView: View {
     }
 }
 
+// MARK: PeripheralView
+
 struct PeripheralView: View {
     
-    var bluetoothManager: BluetoothManager!
-    @State private var messageDraft: String = ""
-
-    func valueIsSet() -> Bool {
-        return bluetoothManager.peripheralManagerDelegate.testMessage != nil
-    }
+    @Environment(BluetoothManager.self) var bluetoothManager
+    // @ObservedObject var peripheralManagerDelegate = bluetoothManager.peripheralManagerDelegate
+    @State private var draft: String = ""
     
     var body: some View {
         VStack {
@@ -45,35 +42,38 @@ struct PeripheralView: View {
                 .foregroundColor(.gray)
                 .padding()
             Spacer()
-            TextField("Enter message to publish", text: $messageDraft)
+            TextField("Enter message to publish", text: $draft)
                 .padding()
                 .overlay(
                     RoundedRectangle(cornerRadius: 10.0)
                         .strokeBorder(Color.black))
                 .onSubmit {
-                    bluetoothManager.publish(serviceUUID: nil, characteristicUUID: nil, message: messageDraft)
-                    messageDraft = ""
+                    Logger.view.trace("In PeripheralView TextField onSubmit")
+                    bluetoothManager.publish(value: draft, serviceUUID: nil, characteristicUUID: nil)
+                    draft = ""
                 }
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding()
             HStack {
-                Text(valueIsSet() ? "Value: " : "No value")
+                Text(bluetoothManager.peripheralManagerDelegate.value == nil ? "No value" : "Value: ")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
                     .padding(.horizontal)
                 Spacer()
-                Text(bluetoothManager.outgoingTestMessage ?? "")
+                Text(bluetoothManager.peripheralManagerDelegate.value ?? "")
                 Button(action: {
-                    bluetoothManager.outgoingTestMessage = nil
+                    Logger.view.trace("In PeripheralView Button action")
+                    bluetoothManager.peripheralManagerDelegate.value = nil
+                    bluetoothManager.stop()
                 }) {
                     Label(
                         title: { },
                         icon: { Image(systemName: "xmark.circle.fill").foregroundColor(Color.black) }
                     )
                 }
-                .opacity(valueIsSet() ? 100 : 0)
+                .opacity(bluetoothManager.peripheralManagerDelegate.value == nil ? 0 : 100)
                 .padding(.horizontal)
-                .disabled(!valueIsSet())
+                .disabled(bluetoothManager.peripheralManagerDelegate.value == nil)
             }
 //            Button(action: {
 //                peripheralManagerDelegate.startAdvertising()
@@ -92,9 +92,12 @@ struct PeripheralView: View {
     }
 }
 
+// MARK: CentralView
+
 struct CentralView: View {
     
-    var bluetoothManager: BluetoothManager!
+    @Environment(BluetoothManager.self) var bluetoothManager
+    // @ObservedObject var centralManagerDelegate: CentralManagerDelegate = BluetoothManager.shared.centralManagerDelegate
     
     var body: some View {
         VStack {
@@ -105,9 +108,10 @@ struct CentralView: View {
                 .padding()
             Spacer()
             Button(action: {
-                bluetoothManager.subscribe(serviceUUID: nil, characteristicUUID: nil)
+                Logger.view.trace("In CentralView Button action")
+                bluetoothManager.mode.rawValue > -1 ? bluetoothManager.subscribe(serviceUUID: nil, characteristicUUID: nil) : bluetoothManager.stop()
             }) {
-                Text("Subscribe")
+                Text(bluetoothManager.mode.rawValue > -1 ? "Subscribe" : "Unsubscribe")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
                     .padding()
                     .background(Color.black)
@@ -116,44 +120,43 @@ struct CentralView: View {
             }
             .padding()
             HStack {
-                Text((bluetoothManager.incomingTestMessage != nil) ? "Value: " : "No value")
+                Text((bluetoothManager.centralManagerDelegate.value == nil) ? "No value" : "Value: ")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
                     .padding(.horizontal)
                 Spacer()
-                Text(bluetoothManager.incomingTestMessage ?? "")
+                Text(bluetoothManager.centralManagerDelegate.value ?? "")
             }
             Spacer()
         }
     }
-    
 }
 
-struct LogoView: View {
-    
-    var body: some View {
-        ZStack {
-            HStack {
-                Rectangle()
-                    .frame(height: 40)
-                Rectangle()
-                    .frame(height: 40)
-                    .opacity(0)
-            }
-            HStack {
-                Text("bleep")
-                    .foregroundColor(.white)
-                    .font(.largeTitle)
-                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
-                Text("bleep")
-                    .foregroundColor(.white)
-                    .font(.largeTitle)
-                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
-                    .opacity(0)
-            }
-        }
-        .padding(.vertical, 40)
-    }
-}
+//struct LogoView: View {
+//    
+//    var body: some View {
+//        ZStack {
+//            HStack {
+//                Rectangle()
+//                    .frame(height: 40)
+//                Rectangle()
+//                    .frame(height: 40)
+//                    .opacity(0)
+//            }
+//            HStack {
+//                Text("bleep")
+//                    .foregroundColor(.white)
+//                    .font(.largeTitle)
+//                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+//                Text("bleep")
+//                    .foregroundColor(.white)
+//                    .font(.largeTitle)
+//                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+//                    .opacity(0)
+//            }
+//        }
+//        .padding(.vertical, 40)
+//    }
+//}
 
 #Preview {
     ContentView()

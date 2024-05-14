@@ -46,10 +46,21 @@ class BluetoothManager: NSObject {
     private(set) var peripheralManagerDelegate: PeripheralManagerDelegate!
     private(set) var centralManagerDelegate: CentralManagerDelegate!
     
-    private(set) var mode: BluetoothMode! { // TODO: Change to computed property?
+    private(set) var mode: BluetoothMode! {
         didSet {
-            Logger.bluetooth.info("BluetoothManager's mode set to \(self.mode)")
+            let modeString = "\(mode!)"
+            Logger.bluetooth.info("BluetoothManager mode set to '\(modeString)'")
         }
+    }
+    
+    var modeIsPeripheral: Bool {
+        return !(mode.rawValue < 1)
+    }
+    var modeIsCentral: Bool {
+        return !(mode.rawValue > -1)
+    }
+    var modeIsUndefined: Bool {
+        return mode.rawValue == 0
     }
     
     // MARK: initializing methods
@@ -59,6 +70,7 @@ class BluetoothManager: NSObject {
     }
     
     init(peripheralName: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
+        mode = .undefined
         super.init()
         peripheralManagerDelegate = PeripheralManagerDelegate(bluetoothManager: self, name: peripheralName, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
         centralManagerDelegate = CentralManagerDelegate(bluetoothManager: self, autoSubscribe: true, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
@@ -68,16 +80,16 @@ class BluetoothManager: NSObject {
     
     private func setMode(to mode: BluetoothMode?) {
         if mode != nil {
-            self.mode = mode
+            self.mode = mode!
         } else {
             let isScanning = centralManagerDelegate.centralManager.isScanning
             let isAdvertising = peripheralManagerDelegate.peripheralManager.isAdvertising
             if (!isAdvertising && !isScanning) || (isAdvertising && isScanning) { // TODO: XOR
-                self.mode = BluetoothMode.undefined
+                self.mode = .undefined
             } else if isScanning {
-                self.mode = BluetoothMode.central
+                self.mode = .central
             } else if isAdvertising {
-                self.mode = BluetoothMode.peripheral
+                self.mode = .peripheral
             }
         }
     }
@@ -105,7 +117,7 @@ class BluetoothManager: NSObject {
             setMode(to: .undefined)
         } else {
             peripheralManagerDelegate.value = value!
-            if mode.rawValue < 1 {
+            if !modeIsPeripheral {
                 centralManagerDelegate.stopScan()
                 setMode(to: .peripheral)
                 if peripheralManagerDelegate.peripheralManager.state == .poweredOn && !peripheralManagerDelegate.peripheralManager.isAdvertising {
@@ -130,7 +142,7 @@ class BluetoothManager: NSObject {
             // centralManagerDelegate.service = CBMutableService(type: serviceUUID!, primary: true)
             return
         }
-        if mode.rawValue > -1 {
+        if !modeIsCentral {
             peripheralManagerDelegate.stopAdvertising()
             setMode(to: .central)
         }

@@ -58,7 +58,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func disconnect(peripheral: CBPeripheral, andStartScan: Bool = false) {
-        peripheral.setNotifyValue(false, for: characteristic) // TODO: Needed?
+        // peripheral.setNotifyValue(false, for: characteristic) // TODO: Needed?
         centralManager.cancelPeripheralConnection(peripheral)
         shallScan = andStartScan
     }
@@ -102,7 +102,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
         self.centralManager = central
         central.delegate = self
-        Logger.bluetooth.debug("In \(#function):willRestoreState")
+        Logger.bluetooth.debug("In \(#function)")
         if bluetoothManager.mode == .central && !self.centralManager.isScanning {
             startScan(nil)
         }
@@ -127,8 +127,8 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         if (error != nil) { // TODO: handle
             Logger.bluetooth.fault("Central did not discoverServices on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))': \(error!.localizedDescription)")
         } else {
-            guard let discoveredServices = peripheral.services else { // TODO: handle
-                Logger.bluetooth.fault("The services property of peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))' is nil")
+            guard let discoveredService = peripheral.services?[0] else { // TODO: handle
+                Logger.bluetooth.fault("The services array of peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))' is nil or empty")
                 return
             }
 //            TODO: The commented lines may be redundant
@@ -146,8 +146,8 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
 //            Logger.bluetooth.error("Central did not find any matching services on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'") // TODO: handle?
             var characteristicUUIDs: [CBUUID]? = nil
             (self.characteristic != nil) ? characteristicUUIDs = [self.characteristic!.uuid] : ()
-            Logger.bluetooth.info("Central didDiscoverServices on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))', including service '\(BluetoothConstants.getKey(for: peripheral.services![0].uuid) ?? "")', and attempts to discoverCharacteristics including '\(BluetoothConstants.getKey(for: characteristicUUIDs?[0]) ?? "")'")
-            peripheral.discoverCharacteristics(characteristicUUIDs, for: discoveredServices[0])
+            Logger.bluetooth.info("Central didDiscoverServices on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))', including service '\(BluetoothConstants.getKey(for: discoveredService.uuid) ?? "")', and attempts to discoverCharacteristics including '\(BluetoothConstants.getKey(for: characteristicUUIDs?[0]) ?? "")' on it")
+            peripheral.discoverCharacteristics(characteristicUUIDs, for: discoveredService)
         }
     }
     
@@ -155,8 +155,8 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         if (error != nil) { // TODO: handle
             Logger.bluetooth.fault("Central did not discoverCharacteristicsFor service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))': \(error!.localizedDescription)")
         } else {
-            guard let discoveredCharacteristics = service.characteristics else { // TODO: handle
-                Logger.bluetooth.fault("The characteristics property of service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength)) is nil")
+            guard let discoveredCharacteristic = service.characteristics?[0] else { // TODO: handle
+                Logger.bluetooth.fault("The characteristics array of service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength)) is nil or empty")
                 return
             }
 //            TODO: The commented lines may be redundant
@@ -170,8 +170,8 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
 //                }
 //            }
 //            Logger.bluetooth.error("Central did not find any matching characteristics in '\(service.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'") // TODO: handle?
-            Logger.bluetooth.debug("Central didDiscoverCharacteristicsFor service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))', including characteristic '\(BluetoothConstants.getKey(for: discoveredCharacteristics[0].uuid) ?? "")', attempting to setNotifyValue for it to true")
-            peripheral.setNotifyValue(true, for: discoveredCharacteristics[0]) // TODO: Rather our own?
+            Logger.bluetooth.debug("Central didDiscoverCharacteristicsFor service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))', including characteristic '\(BluetoothConstants.getKey(for: discoveredCharacteristic.uuid) ?? "")', attempting to setNotifyValue for it to true")
+            peripheral.setNotifyValue(true, for: discoveredCharacteristic) // TODO: Rather our own?
             // We're subscribed
         }
     }

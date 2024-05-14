@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>BHT CaseMicro-Bold.otf</string>
+		<string>BHT CaseMicro-BoldItalic.otf</string>
+		<string>BHT CaseMicro-Italic.otf</string>
+		<string>BHT CaseMicro-Regular.otf</string>
+		<string>BHT CaseText-Bold.otf</string>
+		<string>BHT CaseText-BoldItalic.otf</string>
+		<string>BHT CaseText-Italic.otf</string>
+		<string>BHT CaseText-Regular.otf</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>

@@ -98,7 +98,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
         self.peripheralManager = peripheral
         peripheral.delegate = self
-        Logger.bluetooth.debug("In \(#function):willRestoreState")
+        Logger.bluetooth.debug("In \(#function)")
         // TODO: Readd service?
         if bluetoothManager.mode == .peripheral && !peripheralManager.isAdvertising {
             startAdvertising()

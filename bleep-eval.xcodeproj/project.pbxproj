@@ -8,6 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		F41241FE2BEA879A00B59628 /* CentralManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41241FD2BEA879A00B59628 /* CentralManagerDelegate.swift */; };
+		F41F7C252BF3EE2C000F08B4 /* BHT CaseText-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C1D2BF3EE2C000F08B4 /* BHT CaseText-Regular.otf */; };
+		F41F7C262BF3EE2C000F08B4 /* BHT CaseText-BoldItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C1E2BF3EE2C000F08B4 /* BHT CaseText-BoldItalic.otf */; };
+		F41F7C272BF3EE2C000F08B4 /* BHT CaseText-Italic.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C1F2BF3EE2C000F08B4 /* BHT CaseText-Italic.otf */; };
+		F41F7C282BF3EE2C000F08B4 /* BHT CaseMicro-BoldItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C202BF3EE2C000F08B4 /* BHT CaseMicro-BoldItalic.otf */; };
+		F41F7C292BF3EE2C000F08B4 /* BHT CaseText-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C212BF3EE2C000F08B4 /* BHT CaseText-Bold.otf */; };
+		F41F7C2A2BF3EE2C000F08B4 /* BHT CaseMicro-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C222BF3EE2C000F08B4 /* BHT CaseMicro-Bold.otf */; };
+		F41F7C2B2BF3EE2C000F08B4 /* BHT CaseMicro-Italic.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C232BF3EE2C000F08B4 /* BHT CaseMicro-Italic.otf */; };
+		F41F7C2C2BF3EE2C000F08B4 /* BHT CaseMicro-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = F41F7C242BF3EE2C000F08B4 /* BHT CaseMicro-Regular.otf */; };
 		F4369ED32BE549DF00852AEC /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369ED22BE549DF00852AEC /* App.swift */; };
 		F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4369ED42BE549DF00852AEC /* ContentView.swift */; };
 		F4369ED72BE549E000852AEC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED62BE549E000852AEC /* Assets.xcassets */; };
@@ -19,6 +27,14 @@
 /* Begin PBXFileReference section */
 		F41241FD2BEA879A00B59628 /* CentralManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CentralManagerDelegate.swift; sourceTree = "<group>"; };
 		F41242062BEAAF4200B59628 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		F41F7C1D2BF3EE2C000F08B4 /* BHT CaseText-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseText-Regular.otf"; sourceTree = "<group>"; };
+		F41F7C1E2BF3EE2C000F08B4 /* BHT CaseText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseText-BoldItalic.otf"; sourceTree = "<group>"; };
+		F41F7C1F2BF3EE2C000F08B4 /* BHT CaseText-Italic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseText-Italic.otf"; sourceTree = "<group>"; };
+		F41F7C202BF3EE2C000F08B4 /* BHT CaseMicro-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseMicro-BoldItalic.otf"; sourceTree = "<group>"; };
+		F41F7C212BF3EE2C000F08B4 /* BHT CaseText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseText-Bold.otf"; sourceTree = "<group>"; };
+		F41F7C222BF3EE2C000F08B4 /* BHT CaseMicro-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseMicro-Bold.otf"; sourceTree = "<group>"; };
+		F41F7C232BF3EE2C000F08B4 /* BHT CaseMicro-Italic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseMicro-Italic.otf"; sourceTree = "<group>"; };
+		F41F7C242BF3EE2C000F08B4 /* BHT CaseMicro-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BHT CaseMicro-Regular.otf"; sourceTree = "<group>"; };
 		F4369ECF2BE549DF00852AEC /* bleep-eval.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "bleep-eval.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4369ED22BE549DF00852AEC /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		F4369ED42BE549DF00852AEC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -40,6 +56,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		F41F7C2F2BF3EE5B000F08B4 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				F41F7C222BF3EE2C000F08B4 /* BHT CaseMicro-Bold.otf */,
+				F41F7C202BF3EE2C000F08B4 /* BHT CaseMicro-BoldItalic.otf */,
+				F41F7C232BF3EE2C000F08B4 /* BHT CaseMicro-Italic.otf */,
+				F41F7C242BF3EE2C000F08B4 /* BHT CaseMicro-Regular.otf */,
+				F41F7C212BF3EE2C000F08B4 /* BHT CaseText-Bold.otf */,
+				F41F7C1E2BF3EE2C000F08B4 /* BHT CaseText-BoldItalic.otf */,
+				F41F7C1F2BF3EE2C000F08B4 /* BHT CaseText-Italic.otf */,
+				F41F7C1D2BF3EE2C000F08B4 /* BHT CaseText-Regular.otf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		F4369EC62BE549DF00852AEC = {
 			isa = PBXGroup;
 			children = (
@@ -60,6 +91,7 @@
 		F4369ED12BE549DF00852AEC /* bleep-eval */ = {
 			isa = PBXGroup;
 			children = (
+				F41F7C2F2BF3EE5B000F08B4 /* Fonts */,
 				F4711FBC2BE56443007FEACD /* Info.plist */,
 				F4369ED22BE549DF00852AEC /* App.swift */,
 				F4369ED42BE549DF00852AEC /* ContentView.swift */,
@@ -143,7 +175,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				F4369EDA2BE549E000852AEC /* Preview Assets.xcassets in Resources */,
+				F41F7C262BF3EE2C000F08B4 /* BHT CaseText-BoldItalic.otf in Resources */,
 				F4369ED72BE549E000852AEC /* Assets.xcassets in Resources */,
+				F41F7C2B2BF3EE2C000F08B4 /* BHT CaseMicro-Italic.otf in Resources */,
+				F41F7C272BF3EE2C000F08B4 /* BHT CaseText-Italic.otf in Resources */,
+				F41F7C2C2BF3EE2C000F08B4 /* BHT CaseMicro-Regular.otf in Resources */,
+				F41F7C252BF3EE2C000F08B4 /* BHT CaseText-Regular.otf in Resources */,
+				F41F7C282BF3EE2C000F08B4 /* BHT CaseMicro-BoldItalic.otf in Resources */,
+				F41F7C292BF3EE2C000F08B4 /* BHT CaseText-Bold.otf in Resources */,
+				F41F7C2A2BF3EE2C000F08B4 /* BHT CaseMicro-Bold.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

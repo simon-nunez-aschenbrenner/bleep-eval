@@ -11,14 +11,16 @@ import OSLog
 // MARK: ContentView
 
 struct ContentView: View {
+    
+    @Environment(BluetoothManager.self) var bluetoothManager
         
     var body: some View {
         TabView {
-            PeripheralView ()
+            PeripheralView (bluetoothManager: bluetoothManager, value: bluetoothManager.peripheralManagerDelegate.value)
                 .tabItem {
                     Label("Peripheral", systemImage: "tray.and.arrow.up.fill")
                 }
-            CentralView ()
+            CentralView (bluetoothManager: bluetoothManager, value: bluetoothManager.centralManagerDelegate.value)
                 .tabItem {
                     Label("Central", systemImage: "tray.and.arrow.down.fill")
                 }
@@ -30,9 +32,9 @@ struct ContentView: View {
 
 struct PeripheralView: View {
     
-    @Environment(BluetoothManager.self) var bluetoothManager
-    // @ObservedObject var peripheralManagerDelegate = bluetoothManager.peripheralManagerDelegate
-    @State private var draft: String = ""
+    var bluetoothManager: BluetoothManager
+    var value: String
+    @State var draft: String = "bleep"
     
     var body: some View {
         VStack {
@@ -42,51 +44,51 @@ struct PeripheralView: View {
                 .foregroundColor(.gray)
                 .padding()
             Spacer()
-            TextField("Enter message to publish", text: $draft)
-                .padding()
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10.0)
-                        .strokeBorder(Color.black))
-                .onSubmit {
-                    Logger.view.trace("In PeripheralView TextField onSubmit")
-                    bluetoothManager.publish(value: draft, serviceUUID: nil, characteristicUUID: nil)
-                    draft = ""
-                }
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .padding()
             HStack {
-                Text(bluetoothManager.peripheralManagerDelegate.value == nil ? "No value" : "Value: ")
-                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+                TextField("Enter value to publish", text: $draft)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .padding()
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black, lineWidth: 1)
+                    )
+                Button(action: {
+                    Logger.view.debug("In PeripheralView Button action")
+                    draft != "" ? bluetoothManager.publish(draft, nil, nil) : bluetoothManager.stopPublishing()
+                    draft = ""
+                }) {
+                    Text(draft != "" ? "Publish" : "Stop")
+                        .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+                        .padding()
+                        .background(Color.black)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
+            }
+            .padding()
+            HStack {
+                Text(value == "" ? "No value published" : "Published value: ")
+                    .fontWeight(.bold)
                     .padding(.horizontal)
                 Spacer()
-                Text(bluetoothManager.peripheralManagerDelegate.value ?? "")
-                Button(action: {
-                    Logger.view.trace("In PeripheralView Button action")
-                    bluetoothManager.peripheralManagerDelegate.value = nil
-                    bluetoothManager.stop()
-                }) {
-                    Label(
-                        title: { },
-                        icon: { Image(systemName: "xmark.circle.fill").foregroundColor(Color.black) }
-                    )
-                }
-                .opacity(bluetoothManager.peripheralManagerDelegate.value == nil ? 0 : 100)
-                .padding(.horizontal)
-                .disabled(bluetoothManager.peripheralManagerDelegate.value == nil)
+                Text(value)
+                    .padding(.horizontal)
+//                Button(action: {
+//                    Logger.view.trace("In PeripheralView Button action")
+//                    publishedValue = ""
+//                    bluetoothManager.stop()
+//                }) {
+//                    Label(
+//                        title: { },
+//                        icon: { Image(systemName: "xmark.circle.fill").foregroundColor(Color.black) }
+//                    )
+//                }
+//                .opacity(publishedValue == "" ? 0 : 100)
+//                .padding(.horizontal)
+//                .disabled(publishedValue == "")
             }
-//            Button(action: {
-//                peripheralManagerDelegate.startAdvertising()
-//            }) {
-//                Text("Start advertising")
-//                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
-//                    .padding()
-//                    .background(sendQueueFilled ? Color.black : Color.gray)
-//                    .foregroundColor(.white)
-//                    .cornerRadius(10)
-//            }
-//            .padding()
-//            .disabled(!sendQueueFilled)
             Spacer()
         }
     }
@@ -96,8 +98,8 @@ struct PeripheralView: View {
 
 struct CentralView: View {
     
-    @Environment(BluetoothManager.self) var bluetoothManager
-    // @ObservedObject var centralManagerDelegate: CentralManagerDelegate = BluetoothManager.shared.centralManagerDelegate
+    var bluetoothManager: BluetoothManager
+    var value: String
     
     var body: some View {
         VStack {
@@ -108,8 +110,8 @@ struct CentralView: View {
                 .padding()
             Spacer()
             Button(action: {
-                Logger.view.trace("In CentralView Button action")
-                bluetoothManager.mode.rawValue > -1 ? bluetoothManager.subscribe(serviceUUID: nil, characteristicUUID: nil) : bluetoothManager.stop()
+                Logger.view.debug("In CentralView Button action")
+                bluetoothManager.mode.rawValue > -1 ? bluetoothManager.subscribe(nil, nil) : bluetoothManager.unsubscribe(nil, nil)
             }) {
                 Text(bluetoothManager.mode.rawValue > -1 ? "Subscribe" : "Unsubscribe")
                     .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
@@ -120,11 +122,12 @@ struct CentralView: View {
             }
             .padding()
             HStack {
-                Text((bluetoothManager.centralManagerDelegate.value == nil) ? "No value" : "Value: ")
-                    .fontWeight(/*@START_MENU_TOKEN@*/.bold/*@END_MENU_TOKEN@*/)
+                Text(value == "" ? "No subscribed value" : "Subscribed value: ")
+                    .fontWeight(.bold)
                     .padding(.horizontal)
                 Spacer()
-                Text(bluetoothManager.centralManagerDelegate.value ?? "")
+                Text(value)
+                    .padding(.horizontal)
             }
             Spacer()
         }
@@ -160,4 +163,5 @@ struct CentralView: View {
 
 #Preview {
     ContentView()
+        .environment(BluetoothManager())
 }

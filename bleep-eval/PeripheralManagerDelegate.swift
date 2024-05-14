@@ -9,34 +9,36 @@ import Foundation
 import CoreBluetooth
 import OSLog
 
-class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, ObservableObject {
+@Observable
+class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     unowned var bluetoothManager: BluetoothManager!
-    internal var peripheralManager: CBPeripheralManager!
-    internal var central: CBCentral?
+    var peripheralManager: CBPeripheralManager!
+    var central: CBCentral?
     
-    internal var name: String!
-    internal var service: CBMutableService! // TODO: list
-    internal var characteristic: CBMutableCharacteristic! // TODO: list
-    @Published internal var value: String? // TODO: queue for each characteristic?
+    var name: String!
+    var service: CBMutableService! // TODO: list
+    var characteristic: CBMutableCharacteristic! // TODO: list
+    var value: String! // TODO: queue for each characteristic?
     
     // MARK: initializing methods
     
     init(bluetoothManager: BluetoothManager!, name: String!, serviceUUID: CBUUID!, characteristicUUID: CBUUID!) {
         super.init()
         self.bluetoothManager = bluetoothManager
-        self.peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: "com.simon.bleep-eval.peripheral", CBPeripheralManagerOptionShowPowerAlertKey: true])
+        self.peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: BluetoothConstants.peripheralIdentifierKey, CBPeripheralManagerOptionShowPowerAlertKey: true])
         self.name = name
         self.service = CBMutableService(type: serviceUUID, primary: true)
         self.characteristic = CBMutableCharacteristic(type: characteristicUUID, properties: [.indicate], value: nil, permissions: [.readable])
         self.service.characteristics = [characteristic]
+        self.value = "" // TODO: Better to differentiate between empty and nil string
         Logger.bluetooth.debug("PeripheralManagerDelegate initialized")
     }
     
     // MARK: public methods
     
     func startAdvertising() {
-        Logger.bluetooth.debug("Peripheral attempts to \(#function) as '\(self.name!)' with service '\(self.service!.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' to centrals")
+        Logger.bluetooth.debug("Peripheral attempts to \(#function) as '\(self.name!)' with service '\(BluetoothConstants.getKey(for: self.service.uuid) ?? "")' to centrals")
         peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [service.uuid], CBAdvertisementDataLocalNameKey: name!])
     }
     
@@ -58,18 +60,18 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, Observab
         } else {
             mutableCharacteristic = characteristic as! CBMutableCharacteristic
         }
-        Logger.bluetooth.debug("Peripheral attempts to \(#function) of '\(mutableCharacteristic.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'")
+        Logger.bluetooth.debug("Peripheral attempts to \(#function) of '\(BluetoothConstants.getKey(for: mutableCharacteristic.uuid) ?? "")'")
         let data: Data = value?.data(using: .utf8) ?? Data()
         if peripheralManager.updateValue(data, for: mutableCharacteristic, onSubscribedCentrals: nil) {
-            Logger.bluetooth.info("Peripheral updated value of characteristic '\(mutableCharacteristic.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' to '\(self.value ?? "")'")
+            Logger.bluetooth.info("Peripheral updated value of characteristic '\(BluetoothConstants.getKey(for: mutableCharacteristic.uuid) ?? "")' to '\(self.value ?? "")'")
         } else {
-            Logger.bluetooth.notice("Peripheral did not update value of characteristic '\(mutableCharacteristic.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' to '\(self.value ?? "")', but will try again")
+            Logger.bluetooth.notice("Peripheral did not update value of characteristic '\(BluetoothConstants.getKey(for: mutableCharacteristic.uuid) ?? "")' to '\(self.value ?? "")', but will try again")
         }
     }
     
     // MARK: delegate methods
     
-    internal func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
             Logger.bluetooth.info("\(#function) to 'poweredOn'")
@@ -93,7 +95,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, Observab
         }
     }
     
-    internal func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
+    func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
         self.peripheralManager = peripheral
         peripheral.delegate = self
         Logger.bluetooth.debug("In \(#function):willRestoreState")
@@ -103,25 +105,25 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, Observab
         }
     }
     
-    internal func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        Logger.bluetooth.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' subscribed to characteristic '\(characteristic.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'")
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        Logger.bluetooth.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))' subscribed to characteristic '\(BluetoothConstants.getKey(for: characteristic.uuid) ?? "")' in service '\(BluetoothConstants.getKey(for: characteristic.service?.uuid) ?? "")'")
         updateValue(of: characteristic)
         stopAdvertising()
     }
     
-    internal func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        Logger.bluetooth.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))' unsubscribed from characteristic '\(characteristic.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'")
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+        Logger.bluetooth.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))' unsubscribed to characteristic '\(BluetoothConstants.getKey(for: characteristic.uuid) ?? "")' in service '\(BluetoothConstants.getKey(for: characteristic.service?.uuid) ?? "")'")
         if bluetoothManager.mode == .peripheral && !peripheralManager.isAdvertising {
             startAdvertising()
         }
     }
     
-    internal func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
+    func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         Logger.bluetooth.debug("In \(#function):toUpdateSubscribers")
         updateValue(of: nil)
     }
     
-    internal func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: (any Error)?) {
+    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: (any Error)?) {
         if (error != nil) {
             Logger.bluetooth.fault("Peripheral did not start advertising: \(error!.localizedDescription)")
         } else {
@@ -129,11 +131,11 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate, Observab
         }
     }
     
-    internal func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: (any Error)?) {
+    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: (any Error)?) {
         if (error != nil) {
-            Logger.bluetooth.fault("Peripheral did not add service '\(service.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))': \(error!.localizedDescription)")
+            Logger.bluetooth.fault("Peripheral did not add service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")': \(error!.localizedDescription)")
         } else {
-            Logger.bluetooth.info("Peripheral added service '\(service.uuid.uuidString.suffix(BluetoothConstants.testUUIDSuffixLength))'")
+            Logger.bluetooth.info("Peripheral added service '\(BluetoothConstants.getKey(for: service.uuid) ?? "")'")
         }
     }
 }

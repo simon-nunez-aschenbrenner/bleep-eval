@@ -22,14 +22,16 @@ struct BluetoothConstants {
     ]
     
     static func getKey(for cbuuid: CBUUID?) -> String? {
-        // Logger.bluetooth.debug("getKey for CBUUID '\(cbuuid?.uuidString ?? "")' called")
         guard cbuuid != nil else {
+            Logger.bluetooth.trace("getKey returns nil because the provided CBUUID is nil")
             return nil
         }
         for item in self.CBUUIDs {
             guard item.value.uuidString == cbuuid!.uuidString else { continue }
+            Logger.bluetooth.trace("getKey for CBUUID '\(cbuuid?.uuidString ?? "")' is '\(item.key)'")
             return item.key
         }
+        Logger.bluetooth.trace("getKey returns nil because it found no matching CBUUID")
         return nil
     }
 }
@@ -49,7 +51,7 @@ class BluetoothManager: NSObject {
     private(set) var mode: BluetoothMode! {
         didSet {
             let modeString = "\(mode!)"
-            Logger.bluetooth.info("BluetoothManager mode set to '\(modeString)'")
+            Logger.bluetooth.notice("BluetoothManager mode set to '\(modeString)'")
         }
     }
     
@@ -75,7 +77,7 @@ class BluetoothManager: NSObject {
         peripheralManagerDelegate = PeripheralManagerDelegate(bluetoothManager: self, name: peripheralName, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
         centralManagerDelegate = CentralManagerDelegate(bluetoothManager: self, autoSubscribe: true, serviceUUID: serviceUUID, characteristicUUID: characteristicUUID)
         setMode(to: nil)
-        Logger.bluetooth.debug("BluetoothManager initialized")
+        Logger.bluetooth.trace("BluetoothManager initialized")
     }
     
     private func setMode(to mode: BluetoothMode?) {
@@ -96,77 +98,74 @@ class BluetoothManager: NSObject {
     
     // MARK: public methods
 
-    func publish(_ value: String?, _ serviceUUID: CBUUID?, _ characteristicUUID: CBUUID?) {
-        Logger.bluetooth.debug("\(#function) with value '\(value ?? "")' called for characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")' in service '\(BluetoothConstants.getKey(for: serviceUUID) ?? "")'")
-        guard (characteristicUUID == nil || characteristicUUID!.uuidString == peripheralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
-            Logger.bluetooth.error("\(#function) called with mismatching characteristicUUID")
-            // peripheralManagerDelegate.characteristic = CBMutableCharacteristic(type: characteristicUUID!, properties: [.indicate], value: nil, permissions: [.readable])
-            // peripheralManagerDelegate.service!.characteristics = [peripheralManagerDelegate.characteristic!]
-            return
-        }
-        guard (serviceUUID == nil || serviceUUID!.uuidString == peripheralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
-            Logger.bluetooth.error("\(#function) called with mismatching serviceUUID")
-            // peripheralManagerDelegate.peripheralManager.remove(peripheralManagerDelegate.service!)
-            // peripheralManagerDelegate.service = CBMutableService(type: serviceUUID!, primary: true)
-            // peripheralManagerDelegate.peripheralManager.add(peripheralManagerDelegate.service!)
-            return
-        }
-        if (value == nil) { // When called with nil -> stop
-            peripheralManagerDelegate.stopAdvertising()
+    func publish(_ value: String, for characteristicUUID: CBUUID) {
+        Logger.bluetooth.debug("Attempting to \(#function) value '\(value)' for characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")'")
+        peripheralManagerDelegate.value = value
+        if !modeIsPeripheral {
             centralManagerDelegate.stopScan()
-            setMode(to: .undefined)
-        } else {
-            peripheralManagerDelegate.value = value!
-            if !modeIsPeripheral {
-                centralManagerDelegate.stopScan()
-                setMode(to: .peripheral)
-                if peripheralManagerDelegate.peripheralManager.state == .poweredOn && !peripheralManagerDelegate.peripheralManager.isAdvertising {
-                    peripheralManagerDelegate.startAdvertising()
-                }// else peripheralManagerDidUpdateState or willRestoreState will call startAdvertising
-            } else {
-                peripheralManagerDelegate.updateValue(of: nil)
-            }
+            setMode(to: .peripheral)
+        }
+        if peripheralManagerDelegate.peripheralManager.state == .poweredOn && !peripheralManagerDelegate.peripheralManager.isAdvertising {
+            peripheralManagerDelegate.startAdvertising()
+        }
+        // else peripheralManagerDidUpdateState or willRestoreState will call startAdvertising
+        // TODO: logging
+        let characteristics = peripheralManagerDelegate.service.characteristics
+        guard characteristics != nil && characteristics?[0] != nil else {
+            Logger.bluetooth.fault("The characteristics array of service '\(BluetoothConstants.getKey(for: self.peripheralManagerDelegate.service.uuid) ?? "")' is nil or empty")
+            return
+        }
+        for characteristic in characteristics! {
+            if characteristic.uuid.uuidString == characteristicUUID.uuidString {
+                peripheralManagerDelegate.updateValue(for: characteristic as! CBMutableCharacteristic)
+                break
+            } else { continue }
         }
     }
+    
+    // TODO: Needs better solution
+    func stopPublishing(for characteristicUUID: CBUUID) {
+        Logger.bluetooth.debug("Attempting to stop publishing for characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")'")
+        publish("", for: characteristicUUID)
+        centralManagerDelegate.stopScan()
+        // TODO: stopAdvertising?
+        setMode(to: .undefined)
+    }
         
-    func subscribe(_ serviceUUID: CBUUID?, _ characteristicUUID: CBUUID?) {
-        Logger.bluetooth.debug("\(#function) called for characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")' in service '\(BluetoothConstants.getKey(for: serviceUUID) ?? "")'")
-        guard (characteristicUUID == nil || characteristicUUID!.uuidString == centralManagerDelegate.characteristic!.uuid.uuidString) else {
-            Logger.bluetooth.error("\(#function) called with mismatching characteristicUUID")
-            // centralManagerDelegate.characteristic = CBMutableCharacteristic(type: characteristicUUID!, properties: [.indicate], value: nil, permissions: [.readable])
-            // centralManagerDelegate.service!.characteristics = [centralManagerDelegate.characteristic!]
-            return
-        }
-        guard (serviceUUID == nil || serviceUUID!.uuidString == centralManagerDelegate.service!.uuid.uuidString) else { // TODO: handle
-            Logger.bluetooth.error("\(#function) called with mismatching serviceUUID")
-            // centralManagerDelegate.service = CBMutableService(type: serviceUUID!, primary: true)
-            return
-        }
+    func subscribe() {
+        Logger.bluetooth.trace("Attempting to \(#function)")
         if !modeIsCentral {
             peripheralManagerDelegate.stopAdvertising()
             setMode(to: .central)
         }
         if centralManagerDelegate.centralManager.state == .poweredOn && !centralManagerDelegate.centralManager.isScanning {
-            centralManagerDelegate.startScan(true)
+            centralManagerDelegate.startScan(andSubscribe: true)
         }
         // else centralManagerDidUpdateState or willRestoreState will call startScan
     }
     
-    func stopPublishing() {
-        Logger.bluetooth.info("Attempting to stop publishing")
-        publish(nil, nil, nil)
-    }
-    
-    // TODO: Rename, we're actually disconnecting
-    func unsubscribe(_ serviceUUID: CBUUID?, _ characteristicUUID: CBUUID?) {
-        guard let peripheralToDisconnect = centralManagerDelegate.peripheral else {
-            Logger.bluetooth.fault("Unable to \(#function) from characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")' in service '\(BluetoothConstants.getKey(for: serviceUUID) ?? "")', because peripheral is nil")
+    func unsubscribe(from characteristicUUID: CBUUID, andDisconnectFromPeripheral: Bool = true) {
+        Logger.bluetooth.debug("Attempting to unsubscibe from characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")' \(andDisconnectFromPeripheral ? "andDisconnectFromPeripheral" : "")")
+        guard let peripheral = centralManagerDelegate.peripheral else {
+            Logger.bluetooth.fault("Unable to \(#function) from characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")', because the peripheral property in the CentralManagerDelegate is nil")
             return
         }
-        Logger.bluetooth.info("\(#function) from characteristic '\(BluetoothConstants.getKey(for: characteristicUUID) ?? "")' in service '\(BluetoothConstants.getKey(for: serviceUUID) ?? "")' on '\(peripheralToDisconnect.identifier.uuidString.suffix(BluetoothConstants.UUIDSuffixLength))'")
-        centralManagerDelegate.disconnect(peripheral: peripheralToDisconnect, andStartScan: false)
+        centralManagerDelegate.unsubscribe(peripheral: peripheral, andDisconnect: andDisconnectFromPeripheral)
         peripheralManagerDelegate.stopAdvertising()
         centralManagerDelegate.stopScan()
         setMode(to: .undefined)
     }
+    
+// TODO: dry
+//    func getCBMutableCharacteristic(from: characteristicUUID CBUUID, in delegate: CBPeer?) {
+//        let characteristics = delegate.service.characteristics
+//        guard characteristics != nil && characteristics?[0] != nil else {
+//            Logger.bluetooth.fault("The characteristics array of service '\(BluetoothConstants.getKey(for: delegate.service.uuid) ?? "")' is nil or empty")
+//        }
+//        for characteristic in characteristics! {
+//            if characteristic.uuid.uuidString == characteristicUUID.uuidString {
+//                return characteristic
+//            } else { continue }
+//        }
+//    }
 }

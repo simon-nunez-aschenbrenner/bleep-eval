@@ -76,7 +76,7 @@ struct CentralView: View {
                 .padding([.top, .leading])
             HStack {
                 Button(action: {
-                    bluetoothManager.modeIsCentral ? bluetoothManager.unsubscribe(nil, nil) : bluetoothManager.subscribe(nil, nil)
+                    bluetoothManager.modeIsCentral ?  bluetoothManager.unsubscribe(from: BluetoothConstants.CBUUIDs["testCharacteristic"]!) : bluetoothManager.subscribe()
                 }) {
                     Text(bluetoothManager.modeIsCentral ? "Unsubscribe" : "Subscribe")
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
@@ -130,7 +130,7 @@ struct PeripheralView: View {
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
                 Button(action: {
-                    draft != "" ? bluetoothManager.publish(draft, nil, nil) : bluetoothManager.stopPublishing()
+                    draft != "" ? bluetoothManager.publish(draft, for: BluetoothConstants.CBUUIDs["testCharacteristic"]!) : bluetoothManager.stopPublishing(for: BluetoothConstants.CBUUIDs["testCharacteristic"]!)
                     draft = ""
                 }) {
                     Text(draft != "" ? "Publish" : "Stop")

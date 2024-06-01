@@ -42,11 +42,11 @@ struct ContentView: View {
             LogoView()
                 .padding(.vertical)
             TabView {
-                CentralView (bluetoothManager: bluetoothManager, value: bluetoothManager.centralManagerDelegate.value)
+                CentralView (bluetoothManager: bluetoothManager, notifications: bluetoothManager.centralManagerDelegate.notifications)
                     .tabItem {
                         Label("Central", systemImage: "tray.and.arrow.down.fill")
                     }
-                PeripheralView (bluetoothManager: bluetoothManager, value: bluetoothManager.peripheralManagerDelegate.value)
+                PeripheralView (bluetoothManager: bluetoothManager, notifications: bluetoothManager.peripheralManagerDelegate.notifications)
                     .tabItem {
                         Label("Peripheral", systemImage: "tray.and.arrow.up.fill")
                     }
@@ -61,7 +61,7 @@ struct ContentView: View {
 struct CentralView: View {
     
     var bluetoothManager: BluetoothManager
-    var value: String
+    var notifications: [UInt32: Notification]
     var shallBeDisabled: Bool {
         if !bluetoothManager.modeIsCentral { return false }
         else { return bluetoothManager.centralManagerDelegate.peripheral == nil }
@@ -76,7 +76,7 @@ struct CentralView: View {
                 .padding([.top, .leading])
             HStack {
                 Button(action: {
-                    bluetoothManager.modeIsCentral ?  bluetoothManager.unsubscribe(from: BluetoothConstants.CBUUIDs["testCharacteristic"]!) : bluetoothManager.subscribe()
+                    bluetoothManager.modeIsCentral ?  bluetoothManager.idle() : bluetoothManager.subscribe()
                 }) {
                     Text(bluetoothManager.modeIsCentral ? "Unsubscribe" : "Subscribe")
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
@@ -89,11 +89,11 @@ struct CentralView: View {
             }
             .padding([.bottom, .leading, .trailing])
             HStack {
-                Text(bluetoothManager.modeIsCentral && value != "" ? "Subscribed value: " : "No subscribed value")
+                Text(bluetoothManager.modeIsCentral && !notifications.isEmpty ? "Notification: " : "No notification")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
                 Spacer()
-                Text(value)
+                Text(notifications.first?.value.attributes.first ?? "") // TODO: change
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .padding(.horizontal)
                     .opacity(bluetoothManager.modeIsCentral ? 1 : 0)
@@ -108,7 +108,7 @@ struct CentralView: View {
 struct PeripheralView: View {
     
     var bluetoothManager: BluetoothManager
-    var value: String
+    var notifications: [UInt32: Notification]
     @State var draft: String = "bleep"
     
     var body: some View {
@@ -130,7 +130,7 @@ struct PeripheralView: View {
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
                 Button(action: {
-                    draft != "" ? bluetoothManager.publish(draft, for: BluetoothConstants.CBUUIDs["testCharacteristic"]!) : bluetoothManager.stopPublishing(for: BluetoothConstants.CBUUIDs["testCharacteristic"]!)
+                    draft != "" ? bluetoothManager.publish(draft) : bluetoothManager.idle()
                     draft = ""
                 }) {
                     Text(draft != "" ? "Publish" : "Stop")
@@ -144,11 +144,11 @@ struct PeripheralView: View {
             }
             .padding([.bottom, .leading, .trailing])
             HStack {
-                Text(bluetoothManager.modeIsPeripheral && value != "" ? "Published value: " : "No value published")
+                Text(bluetoothManager.modeIsPeripheral && !notifications.isEmpty ? "Notification: " : "No notification")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
                 Spacer()
-                Text(value)
+                Text(notifications.first?.value.attributes.first ?? "") // TODO: change
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .padding(.horizontal)
                     .opacity(bluetoothManager.modeIsPeripheral ? 1 : 0)

@@ -76,7 +76,7 @@ struct CentralView: View {
                 .padding([.top, .leading])
             HStack {
                 Button(action: {
-                    bluetoothManager.modeIsCentral ?  bluetoothManager.idle() : bluetoothManager.subscribe()
+                    bluetoothManager.modeIsCentral ? bluetoothManager.idle() : bluetoothManager.subscribe()
                 }) {
                     Text(bluetoothManager.modeIsCentral ? "Unsubscribe" : "Subscribe")
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))

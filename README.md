@@ -1,3 +1,3 @@
-### Evaluating routing algorithms for "bleep", an iPhone based mobile ad hoc network at major public events
+### Evaluating routing algorithms for "bleep", an iPhone based mobile ad hoc network for major public events
 
 My bachelor's thesis, a work in progress ...

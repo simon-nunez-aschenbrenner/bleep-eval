@@ -116,8 +116,8 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         withUnsafeBytes(of: &destinationAddress) { bytes in data.append(contentsOf: bytes) }
         var sourceAddress = notification.sourceAddress.rawValue.littleEndian
         withUnsafeBytes(of: &sourceAddress) { bytes in data.append(contentsOf: bytes) }
-        var message = notification.message
-        withUnsafeBytes(of: &message) { bytes in data.append(contentsOf: bytes) }
+        var messageData = notification.message.data(using: .utf8) ?? Data()
+        data.append(messageData)
         Logger.bluetooth.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
         if peripheralManager.updateValue(data, for: self.dataSource, onSubscribedCentrals: nil) {
             Logger.bluetooth.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")

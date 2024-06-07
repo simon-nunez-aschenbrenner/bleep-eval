@@ -108,7 +108,7 @@ class BluetoothManager: NSObject {
     // MARK: public methods
     
     func publish(_ message: String, categoryID: UInt8 = 0) {
-        publish(message, categoryID: categoryID, destinationAddress: Address(245)) // Broadcast
+        publish(message, categoryID: categoryID, destinationAddress: Address(0)) // Broadcast
     }
     
     func publish(_ message: String, categoryID: UInt8 = 0, destinationAddress: Address) {

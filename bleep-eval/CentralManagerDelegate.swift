@@ -63,9 +63,9 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     // MARK: private methods
     
     private func handleNotificationSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        Logger.bluetooth.debug("Central attempts to \(#function) from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+        Logger.bluetooth.debug("Central attempts to \(#function) from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         guard data.count == 11 else { // TODO: handle
-            Logger.bluetooth.fault("NotificationSourceUpdate from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' not 11 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.fault("NotificationSourceUpdate from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' not 11 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
             return
         }
         // TODO: handle different categoryIDs
@@ -88,9 +88,9 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     private func handleDataSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        Logger.bluetooth.debug("Central attempts to \(#function) from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))'")
+        Logger.bluetooth.debug("Central attempts to \(#function) from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         guard data.count > 18 else { // TODO: handle
-            Logger.bluetooth.fault("DataSourceUpdate from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' not more than 18 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.fault("DataSourceUpdate from peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' not more than 18 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
             return
         }
         if data[2] == 0 { // TODO: handle other CommandIDs
@@ -198,8 +198,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 case BluetoothConstants.controlPointUUID.uuidString:
                     discoveredAllCharacteristics[1] = true
                     self.controlPoint = characteristic
-                    Logger.bluetooth.trace("self.controlPoint = \(self.controlPoint)")
-                    
+                    Logger.bluetooth.trace("Central added '\(BluetoothConstants.getName(of: characteristic.uuid))' characteristic")
                 case BluetoothConstants.dataSourceUUID.uuidString:
                     discoveredAllCharacteristics[2] = true
                     Logger.bluetooth.trace("Central attempts to setNotifyValue of '\(BluetoothConstants.getName(of: characteristic.uuid))' to true")
@@ -224,7 +223,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 Logger.bluetooth.fault("The value property of characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))' on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength)) is nil")
                 return
             }
-            Logger.bluetooth.debug("Central did receive UpdateValueFor characteristic \(BluetoothConstants.getName(of: characteristic.uuid)) on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(data)'")
+            Logger.bluetooth.debug("Central did receive UpdateValueFor characteristic \(BluetoothConstants.getName(of: characteristic.uuid)) on peripheral '\(peripheral.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
             if characteristic.uuid.uuidString == BluetoothConstants.notificationSourceUUID.uuidString {
                 handleNotificationSourceUpdate(peripheral: peripheral, data: data)
             } else if characteristic.uuid.uuidString == BluetoothConstants.dataSourceUUID.uuidString {

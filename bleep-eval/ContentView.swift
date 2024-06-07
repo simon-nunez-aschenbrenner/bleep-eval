@@ -111,13 +111,25 @@ struct PeripheralView: View {
     var notifications: [UInt16: Notification]
     @State var draft: String = "bleep"
     
+    let exampleDraftWith505Characters = "The quick brown fox jumps over the lazy dog. This sentence contains every letter in the English alphabet at least once, making it a popular example of a pangram. Pangrams are useful for testing fonts, keyboards, and other typographical elements. The fox, quick and agile, effortlessly leaps over the dog, who is resting peacefully. As the sun sets, the animals continue their dance, each movement a testament to nature's harmony. In this simple scene, one finds a reminder of beauty and balance in nature."
+    
     var body: some View {
         VStack(alignment: .leading) {
             Spacer()
-            Text("Peripheral")
-                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Title))
-                .foregroundColor(Color("bleepSecondary"))
-                .padding([.top, .leading])
+            HStack(alignment: .bottom) {
+                Text("Peripheral")
+                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Title))
+                    .foregroundColor(Color("bleepSecondary"))
+                    .padding([.top, .leading])
+                Spacer()
+                Button(action: {
+                    draft = exampleDraftWith505Characters
+                }) {
+                    Text("\(draft.count)/505")
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .padding()
+                }
+            }
             HStack {
                 TextField("Enter value to publish", text: $draft)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))

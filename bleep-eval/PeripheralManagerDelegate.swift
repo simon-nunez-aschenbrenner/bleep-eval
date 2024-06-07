@@ -62,11 +62,11 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         data.append(notification.categoryID)
         var destinationAddress = notification.destinationAddress.rawValue.littleEndian
         withUnsafeBytes(of: &destinationAddress) { bytes in data.append(contentsOf: bytes) }
-        Logger.bluetooth.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+        Logger.bluetooth.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
-            Logger.bluetooth.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         } else {
-            Logger.bluetooth.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid)))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid)))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         }
     }
     
@@ -81,11 +81,11 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
                 return
             }
             guard data.count == 3 else { // TODO: handle
-                Logger.bluetooth.fault("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is not 3 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+                Logger.bluetooth.fault("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is not 3 bytes long: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
                 peripheral.respond(to: request, withResult: .invalidAttributeValueLength)
                 return
             }
-            Logger.bluetooth.debug("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.debug("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
             if data[2] == 0 { // TODO: handle other CommandIDs
                 let notificationIDData = data.subdata(in: 0..<2)
                 let notificationID: UInt16 = notificationIDData.withUnsafeBytes { $0.load(as: UInt16.self) }.littleEndian
@@ -118,11 +118,11 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         withUnsafeBytes(of: &sourceAddress) { bytes in data.append(contentsOf: bytes) }
         var messageData = notification.message.data(using: .utf8) ?? Data()
         data.append(messageData)
-        Logger.bluetooth.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+        Logger.bluetooth.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with: '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         if peripheralManager.updateValue(data, for: self.dataSource, onSubscribedCentrals: nil) {
-            Logger.bluetooth.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         } else {
-            Logger.bluetooth.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid)))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count))")
+            Logger.bluetooth.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid)))' to '\(data.map { String($0) }.joined(separator: " "))' (Length: \(data.count) bytes)")
         }
     }
 
@@ -186,6 +186,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.bluetooth.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' didSubscribeTo characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))'")
         self.central = central
         stopAdvertising()
+        peripheralManager.setDesiredConnectionLatency(.low, for: central)
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {

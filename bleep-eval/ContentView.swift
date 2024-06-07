@@ -61,7 +61,7 @@ struct ContentView: View {
 struct CentralView: View {
     
     var bluetoothManager: BluetoothManager
-    var notifications: [UInt32: Notification]
+    var notifications: [UInt16: Notification]
     var shallBeDisabled: Bool {
         if !bluetoothManager.modeIsCentral { return false }
         else { return bluetoothManager.centralManagerDelegate.peripheral == nil }
@@ -93,7 +93,7 @@ struct CentralView: View {
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
                 Spacer()
-                Text(notifications.first?.value.attributes.first ?? "") // TODO: change
+                Text(notifications.first?.value.message ?? "") // TODO: change
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .padding(.horizontal)
                     .opacity(bluetoothManager.modeIsCentral ? 1 : 0)
@@ -108,7 +108,7 @@ struct CentralView: View {
 struct PeripheralView: View {
     
     var bluetoothManager: BluetoothManager
-    var notifications: [UInt32: Notification]
+    var notifications: [UInt16: Notification]
     @State var draft: String = "bleep"
     
     var body: some View {
@@ -148,7 +148,7 @@ struct PeripheralView: View {
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
                 Spacer()
-                Text(notifications.first?.value.attributes.first ?? "") // TODO: change
+                Text(notifications.first?.value.message ?? "") // TODO: change
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .padding(.horizontal)
                     .opacity(bluetoothManager.modeIsPeripheral ? 1 : 0)

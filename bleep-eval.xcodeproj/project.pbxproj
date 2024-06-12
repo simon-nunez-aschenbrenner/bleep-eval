@@ -21,6 +21,8 @@
 		F4369ED72BE549E000852AEC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED62BE549E000852AEC /* Assets.xcassets */; };
 		F4369EDA2BE549E000852AEC /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED92BE549E000852AEC /* Preview Assets.xcassets */; };
 		F484D7C12BEE4D6E0070E613 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */; };
+		F4D839AE2C175D4B00D1CF21 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */; };
+		F4D839B02C19ED4F00D1CF21 /* AddressManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D839AF2C19ED4F00D1CF21 /* AddressManager.swift */; };
 		F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -42,6 +44,8 @@
 		F4369ED92BE549E000852AEC /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		F4711FBC2BE56443007FEACD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
+		F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		F4D839AF2C19ED4F00D1CF21 /* AddressManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressManager.swift; sourceTree = "<group>"; };
 		F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeripheralManagerDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -96,6 +100,8 @@
 				F4369ED22BE549DF00852AEC /* App.swift */,
 				F4369ED42BE549DF00852AEC /* ContentView.swift */,
 				F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */,
+				F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */,
+				F4D839AF2C19ED4F00D1CF21 /* AddressManager.swift */,
 				F4369ED62BE549E000852AEC /* Assets.xcassets */,
 				F4369ED82BE549E000852AEC /* Preview Content */,
 				F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */,
@@ -194,7 +200,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4D839AE2C175D4B00D1CF21 /* NotificationManager.swift in Sources */,
 				F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */,
+				F4D839B02C19ED4F00D1CF21 /* AddressManager.swift in Sources */,
 				F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */,
 				F4369ED32BE549DF00852AEC /* App.swift in Sources */,
 				F41241FE2BEA879A00B59628 /* CentralManagerDelegate.swift in Sources */,

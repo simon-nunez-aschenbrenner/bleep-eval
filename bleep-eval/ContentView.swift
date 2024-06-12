@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import OSLog
 
 struct Font {
@@ -36,102 +37,30 @@ struct Font {
 struct ContentView: View {
     
     @Environment(BluetoothManager.self) var bluetoothManager
-        
+    @Environment(\.modelContext) private var modelContext
+    @State var draft: String = "bleep"
+    let exampleDraftWith459Characters = "A quick brown fox jumps over the lazy dog. Every amazing wizard begs for quick but sleepy zebras. My huge sphinx of quartz vows to blow lazy kites apart. Just quickly vexing zebras from California, Dwight jumps over a lazy fox. The five boxing wizards jump quickly, vexing. Big sphinx of quartz, judge my vow! Amazingly few discotheques provide jukeboxes. A quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. Zebras vex Mr. Fox."
+    @Query var notifications: [Notification] // TODO: filter for our address
+    
     var body: some View {
-        VStack {
+        VStack(alignment: .leading) {
             LogoView()
                 .padding(.vertical)
-            TabView {
-                CentralView (bluetoothManager: bluetoothManager, notifications: bluetoothManager.centralManagerDelegate.notifications)
-                    .tabItem {
-                        Label("Central", systemImage: "tray.and.arrow.down.fill")
-                    }
-                PeripheralView (bluetoothManager: bluetoothManager, notifications: bluetoothManager.peripheralManagerDelegate.notifications)
-                    .tabItem {
-                        Label("Peripheral", systemImage: "tray.and.arrow.up.fill")
-                    }
-            }
-            .accentColor(Color("bleepPrimary"))
-        }
-    }
-}
-
-// MARK: CentralView
-
-struct CentralView: View {
-    
-    var bluetoothManager: BluetoothManager
-    var notifications: [UInt16: Notification]
-    var shallBeDisabled: Bool {
-        if !bluetoothManager.modeIsCentral { return false }
-        else { return bluetoothManager.centralManagerDelegate.peripheral == nil }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading) {
             Spacer()
-            Text("Central")
-                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Title))
-                .foregroundColor(Color("bleepSecondary"))
-                .padding([.top, .leading])
-            HStack {
-                Button(action: {
-                    bluetoothManager.modeIsCentral ? bluetoothManager.idle() : bluetoothManager.subscribe()
-                }) {
-                    Text(bluetoothManager.modeIsCentral ? "Unsubscribe" : "Subscribe")
-                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .padding()
-                        .background(shallBeDisabled ? Color("bleepSecondary") : Color("bleepPrimary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(.infinity)
-                }
-                .disabled(shallBeDisabled)
-            }
-            .padding([.bottom, .leading, .trailing])
-            HStack {
-                Text(bluetoothManager.modeIsCentral && !notifications.isEmpty ? "Notification: " : "No notification")
-                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .padding(.horizontal)
-                Spacer()
-                Text(notifications.first?.value.message ?? "") // TODO: change
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .padding(.horizontal)
-                    .opacity(bluetoothManager.modeIsCentral ? 1 : 0)
-            }
-            Spacer()
-        }
-    }
-}
-
-// MARK: PeripheralView
-
-struct PeripheralView: View {
-    
-    var bluetoothManager: BluetoothManager
-    var notifications: [UInt16: Notification]
-    @State var draft: String = "bleep"
-    
-    let exampleDraftWith505Characters = "The quick brown fox jumps over the lazy dog. This sentence contains every letter in the English alphabet at least once, making it a popular example of a pangram. Pangrams are useful for testing fonts, keyboards, and other typographical elements. The fox, quick and agile, effortlessly leaps over the dog, who is resting peacefully. As the sun sets, the animals continue their dance, each movement a testament to nature's harmony. In this simple scene, one finds a reminder of beauty and balance in nature."
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            Spacer()
+            
             HStack(alignment: .bottom) {
-                Text("Peripheral")
-                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Title))
-                    .foregroundColor(Color("bleepSecondary"))
-                    .padding([.top, .leading])
                 Spacer()
                 Button(action: {
-                    draft = exampleDraftWith505Characters
+                    draft = exampleDraftWith459Characters
                 }) {
-                    Text("\(draft.count)/505")
+                    Text("\(draft.count)/459")
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .padding()
+                        .foregroundColor(Color("bleepPrimary"))
                 }
             }
             HStack {
-                TextField("Enter value to publish", text: $draft)
+                TextField("Enter message", text: $draft)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
@@ -142,28 +71,65 @@ struct PeripheralView: View {
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
                 Button(action: {
-                    draft != "" ? bluetoothManager.publish(draft) : bluetoothManager.idle()
+                    if !draft.isEmpty {
+                        let notification = Notification(categoryID: 1, sourceAddress: bluetoothManager.address, destinationAddress: Address.Broadcast, message: draft)
+                        modelContext.insert(notification)
+                        do {
+                            try modelContext.save()
+                        } catch {
+                            Logger.notification.fault("Failed to save notification: \(error)")
+                        }
+                    } else {
+                        bluetoothManager.idle()
+                    }
                     draft = ""
                 }) {
-                    Text(draft != "" ? "Publish" : "Stop")
+                    Text(!draft.isEmpty ? "Save" : "Stop")
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                         .padding()
-                        .background(bluetoothManager.modeIsUndefined && draft == "" ? Color("bleepSecondary") : Color("bleepPrimary"))
+                        .background(bluetoothManager.modeIsUndefined && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
                         .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                         .cornerRadius(.infinity)
                 }
-                .disabled(bluetoothManager.modeIsUndefined && draft == "")
+                .disabled(bluetoothManager.modeIsUndefined && draft.isEmpty)
             }
-            .padding([.bottom, .leading, .trailing])
+            .padding([.leading, .trailing])
+            
             HStack {
-                Text(bluetoothManager.modeIsPeripheral && !notifications.isEmpty ? "Notification: " : "No notification")
+                Button(action: {
+                    bluetoothManager.publish()
+                }) {
+                    Text("Publish")
+                        .frame(maxWidth: .infinity)
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .padding()
+                        .background(Color("bleepPrimary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(.infinity)
+                }
+                Button(action: {
+                    bluetoothManager.subscribe()
+                }) {
+                    Text("Subscribe")
+                        .frame(maxWidth: .infinity)
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .padding()
+                        .background(Color("bleepPrimary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(.infinity)
+                }
+            }
+            .padding()
+            
+            VStack {
+                Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
-                Spacer()
-                Text(notifications.first?.value.message ?? "") // TODO: change
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .padding(.horizontal)
-                    .opacity(bluetoothManager.modeIsPeripheral ? 1 : 0)
+                ForEach(notifications) { notification in
+                    Text(notification.message ?? "")
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .padding(.horizontal)
+                }
             }
             Spacer()
         }

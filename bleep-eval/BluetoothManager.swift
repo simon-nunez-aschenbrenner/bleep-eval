@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreBluetooth
+import CryptoKit
 import OSLog
 
 enum BluetoothMode: Int {
@@ -16,6 +17,8 @@ enum BluetoothMode: Int {
 }
 
 struct BluetoothConstants {
+    
+    static let testAddress = Address(245)
     
     static let peripheralName = "bleeper"
     static let centralIdentifierKey = "com.simon.bleep-eval.central"
@@ -64,12 +67,12 @@ class BluetoothManager: NSObject {
     var modeIsUndefined: Bool { return mode.rawValue == 0 }
     
     override init() {
-        address = Address() // TODO: persist
+        address = BluetoothConstants.testAddress // TODO: randomize and persist
         super.init()
         peripheralManagerDelegate = PeripheralManagerDelegate(bluetoothManager: self)
         centralManagerDelegate = CentralManagerDelegate(bluetoothManager: self)
         initMode()
-        Logger.bluetooth.debug("BluetoothManager initialized with address '\(self.address.base58EncodedString.suffix(BluetoothConstants.suffixLength))'")
+        Logger.bluetooth.debug("BluetoothManager initialized with address '\(self.address.base58Encoded.suffix(BluetoothConstants.suffixLength))'")
     }
     
     private func initMode() {
@@ -107,78 +110,18 @@ class BluetoothManager: NSObject {
     
     // MARK: public methods
     
-    func publish(_ message: String, categoryID: UInt8 = 0) {
-        publish(message, categoryID: categoryID, destinationAddress: Address(0)) // Broadcast
-    }
-    
-    func publish(_ message: String, categoryID: UInt8 = 0, destinationAddress: Address) {
-        publish(message, categoryID: categoryID, sourceAddress: self.address, destinationAddress: destinationAddress)
-    }
-    
-    func publish(_ notification: Notification, categoryID: UInt8?) {
-        publish(notification.message, categoryID: categoryID ?? notification.categoryID, sourceAddress: notification.sourceAddress, destinationAddress: notification.destinationAddress)
-    }
-    
-    func publish(_ message: String, categoryID: UInt8, sourceAddress: Address, destinationAddress: Address) {
-        Logger.bluetooth.debug("Attempting to \(#function) category \(categoryID) message '\(message)' intended from '\(sourceAddress.base58EncodedString.suffix(BluetoothConstants.suffixLength))' to '\(destinationAddress.base58EncodedString.suffix(BluetoothConstants.suffixLength))'")
-        let notificationID = UInt16(peripheralManagerDelegate.notifications.count)
-        let notification = Notification(notificationID: notificationID, categoryID: categoryID, sourceAddress: sourceAddress, destinationAddress: destinationAddress, message: message)
-        // peripheralManagerDelegate.notifications[notificationID] = notification
+    func publish() {
+        Logger.bluetooth.trace("Attempting to \(#function) notifications")
         setMode(to: .peripheral)
-        peripheralManagerDelegate.sendNotification(notification)
     }
     
-    func subscribe(categoryID: UInt8 = 0) {
-        Logger.bluetooth.trace("Attempting to \(#function)")
+    func subscribe() {
+        Logger.bluetooth.trace("Attempting to \(#function) to notifications")
         setMode(to: .central)
     }
     
     func idle() {
         Logger.bluetooth.debug("Attempting to \(#function)")
         setMode(to: .undefined)
-    }
-}
-
-struct Notification: CustomStringConvertible {
-    let notificationID: UInt16 // messageID: UInt80 = peripheral.address << 16 + notificationID
-    let categoryID: UInt8
-    let sourceAddress: Address
-    let destinationAddress: Address
-    var message: String
-    
-    var description: String {
-        return "category \(categoryID) notification #\(notificationID) with message '\(message)' intended from '\(sourceAddress.base58EncodedString.suffix(BluetoothConstants.suffixLength))' to '\(destinationAddress.base58EncodedString.suffix(BluetoothConstants.suffixLength))'"
-    }
-}
-
-struct Address {
-    
-    let rawValue: UInt64!
-    var base58EncodedString: String {
-        return Base58.encode(rawValue)
-    }
-    
-    init() {
-        self.rawValue = UInt64.random(in: UInt64.min...UInt64.max)
-    }
-    
-    init(_ value: UInt64) {
-        self.rawValue = value
-    }
-}
-
-struct Base58 {
-    
-    static let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-    
-    public static func encode(_ integer: UInt64) -> String {
-        var integer = integer
-        var result = ""
-        while integer > 0 {
-            let remainder = Int(integer % 58)
-            integer /= 58
-            result.append(alphabet[remainder])
-        }
-        return String(result.reversed())
     }
 }

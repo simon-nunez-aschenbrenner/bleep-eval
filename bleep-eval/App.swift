@@ -11,30 +11,26 @@ import OSLog
 
 extension Logger {
     private static var subsystem = Bundle.main.bundleIdentifier!
+    static let app = Logger(subsystem: subsystem, category: "app")
     static let notification = Logger(subsystem: subsystem, category: "notification")
     static let bluetooth = Logger(subsystem: subsystem, category: "bluetooth")
     static let peripheral = Logger(subsystem: subsystem, category: "peripheral")
-    static let central = Logger(subsystem: subsystem, category: "cenral")
+    static let central = Logger(subsystem: subsystem, category: "central")
 }
 
 @main
 struct bleepEvalApp: App {
     
-    @State var bluetoothManager = BluetoothManager()
+    @State var notificationManager: NotificationManager
     
     init() {
-        let tabBarAppearance = UITabBarAppearance()
-        tabBarAppearance.stackedLayoutAppearance.normal.titleTextAttributes = [.font: UIFont(name: Font.BHTCaseMicro.Regular, size: 10)!]
-        tabBarAppearance.inlineLayoutAppearance.normal.titleTextAttributes = [.font: UIFont(name: Font.BHTCaseMicro.Regular, size: 10)!]
-        tabBarAppearance.compactInlineLayoutAppearance.normal.titleTextAttributes = [.font: UIFont(name: Font.BHTCaseMicro.Regular, size: 10)!]
-        UITabBar.appearance().standardAppearance = tabBarAppearance
+        self.notificationManager = NotificationManager()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(bluetoothManager)
-                .modelContainer(NotificationManager.shared.container!)
+                .environment(notificationManager)
         }
     }
 }

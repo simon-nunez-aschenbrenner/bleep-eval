@@ -7,35 +7,41 @@
 
 import Foundation
 import CryptoKit
+import OSLog
+import SwiftData
 
+@Model
 class Address {
     
     static let Broadcast = Address(0)
     
     let rawValue: UInt64!
-    var data: Data {
+    @Transient var data: Data {
         return withUnsafeBytes(of: rawValue.littleEndian) { Data($0) }
     }
-    var hashed: Data {
+    @Transient var hashed: Data {
         return Data(SHA256.hash(data: String(rawValue).data(using: .utf8)!))
     }
-    var base58Encoded: String {
+    @Transient var base58Encoded: String {
         return Address.encode(rawValue)
     }
-    var other: Data {
-        let otherAddress = UInt64(rawValue - UInt64.random(in: 1...UInt64.max))
+    @Transient var other: Data {
+        let otherAddress = UInt64(rawValue &- UInt64.random(in: 1...UInt64.max))
         return withUnsafeBytes(of: otherAddress.littleEndian) { Data($0) }
     }
     
     init() {
         self.rawValue = UInt64.random(in: 1...UInt64.max) // 0 reserved for Broadcast
+        Logger.notification.trace("Address \(printID(self.rawValue)) initialized")
     }
     
     init(_ value: UInt64) {
         self.rawValue = value
+        Logger.notification.trace("Address \(printID(self.rawValue)) initialized")
     }
     
     static func encode(_ integer: UInt64) -> String {
+        Logger.notification.trace("In Address.\(#function)")
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var integer = integer
         var result = ""
@@ -53,6 +59,7 @@ class Address {
     }
     
     static func hash(_ data: Data) -> Data {
+        Logger.notification.trace("In Address.\(#function)")
         return Data(SHA256.hash(data: data))
     }
 }

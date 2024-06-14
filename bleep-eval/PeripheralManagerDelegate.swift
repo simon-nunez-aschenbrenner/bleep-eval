@@ -12,6 +12,7 @@ import OSLog
 @Observable
 class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
+    unowned var notificationManager: NotificationManager!
     unowned var bluetoothManager: BluetoothManager!
     var peripheralManager: CBPeripheralManager!
     
@@ -22,17 +23,19 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     var central: CBCentral? // TODO: multiple centrals
     var sentQueue: [Data: Notification] = [:] // TODO: for each central?
+    var startIndex = 0
         
     // MARK: initializing methods
     
-    init(bluetoothManager: BluetoothManager) {
+    init(notificationManager: NotificationManager, bluetoothManager: BluetoothManager) {
         super.init()
+        self.notificationManager = notificationManager
         self.bluetoothManager = bluetoothManager
         self.peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: BluetoothConstants.peripheralIdentifierKey, CBPeripheralManagerOptionShowPowerAlertKey: true])
         self.service = CBMutableService(type: BluetoothConstants.serviceUUID, primary: true)
-        self.notificationSource = CBMutableCharacteristic(type: BluetoothConstants.notificationSourceUUID, properties: [.notify], value: nil, permissions: [])
+        self.notificationSource = CBMutableCharacteristic(type: BluetoothConstants.notificationSourceUUID, properties: [.indicate], value: nil, permissions: [])
         self.controlPoint = CBMutableCharacteristic(type: BluetoothConstants.controlPointUUID, properties: [.write], value: nil, permissions: [.writeable])
-        self.dataSource = CBMutableCharacteristic(type: BluetoothConstants.dataSourceUUID, properties: [.notify], value: nil, permissions: [])
+        self.dataSource = CBMutableCharacteristic(type: BluetoothConstants.dataSourceUUID, properties: [.indicate], value: nil, permissions: [])
         self.service.characteristics = [notificationSource, controlPoint, dataSource]
         Logger.peripheral.trace("PeripheralManagerDelegate initialized")
     }
@@ -40,11 +43,17 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     // MARK: public methods
     
     func startAdvertising() {
-        if peripheralManager.state == .poweredOn && bluetoothManager.modeIsPeripheral && central == nil {
+        Logger.peripheral.trace("In \(#function)")
+        if peripheralManager.isAdvertising {
+            Logger.peripheral.debug("Peripheral is already advertising")
+        } else if peripheralManager.state == .poweredOn && bluetoothManager.modeIsPeripheral && central == nil {
             Logger.peripheral.debug("Peripheral attempts to \(#function) as '\(BluetoothConstants.peripheralName)' with service '\(BluetoothConstants.getName(of: self.service.uuid))' to centrals")
             peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [self.service.uuid], CBAdvertisementDataLocalNameKey: BluetoothConstants.peripheralName])
-        } else { // TODO: handle
-            Logger.peripheral.warning("Peripheral won't attempt to \(#function): PeripheralState is \(self.peripheralManager.state == .poweredOn ? "poweredOn" : "not poweredOn"), BluetoothMode is \(self.bluetoothManager.modeIsPeripheral ? "peripheral" : "not peripheral"), Central property is \(self.central == nil ? "nil" : "not nil")")
+        } else {
+            Logger.peripheral.notice("Peripheral won't attempt to \(#function) because PeripheralState is \(self.peripheralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.modeIsPeripheral ? "peripheral" : "NOT peripheral") or central property is \(self.central == nil ? "nil" : "NOT nil")")
+            if central != nil {
+                sendNotifications()
+            }
         }
     }
     
@@ -55,32 +64,54 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     // MARK: private methods
     
-    // TODO: log
     private func sendNotifications() {
         Logger.peripheral.trace("Attempting to \(#function)")
-        guard let notifications = NotificationManager.shared.fetchAllNotifications() else {
+        guard let notifications = notificationManager.fetchAllNotifications() else {
             Logger.peripheral.warning("No notifications to publish")
+            sendNoNotificationSignal()
             return
         }
-        for notification in notifications {
-            Logger.peripheral.debug("Peripheral attempts to sendNotification #\(notification.hashedID) (message: '\(notification.message ?? "")')")
-            sentQueue[notification.hashedID] = notification
-            var data = Data()
-            data.append(notification.categoryID)
-            data.append(notification.hashedID)
-            data.append(notification.hashedDestinationAddress)
-            assert(data.count == 65)
-            updateNotificationSource(data: data)
+        if startIndex > -1 {
+            for index in notifications.indices {
+                Logger.peripheral.trace("\(#function): loopIndex = \(index), startIndex = \(self.startIndex)")
+                if index < self.startIndex {
+                    continue
+                }
+                let notification = notifications[index]
+                Logger.peripheral.debug("Peripheral attempts to sendNotification #\(printID(notification.hashedID)) with message: '\(notification.message ?? "")'")
+                sentQueue[notification.hashedID] = notification
+                Logger.peripheral.trace("Peripheral added notification #\(printID(notification.hashedID)) to its sentQueue")
+                var data = Data()
+                data.append(notification.categoryID)
+                data.append(notification.hashedID)
+                data.append(notification.hashedDestinationAddress)
+                assert(data.count == 65)
+                Logger.peripheral.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with: '\(printData(data))' (Length: \(data.count) bytes)")
+                self.startIndex = index // We'll save our place in the loop
+                if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
+                    Logger.peripheral.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with '\(printData(data))' (Length: \(data.count) bytes)")
+                    self.startIndex = -1 // Iteration was successful, let's go for another round
+                    continue
+                } else {
+                    Logger.peripheral.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid)))' with '\(printData(data))' (Length: \(data.count) bytes)")
+                    break // Iteration was not successful. But peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again and we'll continue with the same index that failed.
+                }
+            }
         }
-        updateNotificationSource(data: Data(count: 65)) // Signal that we don't have any more notifications
+        if startIndex < 0 { // The last iteration of the loop before ended successfully. We want to signal that we don't have any more notifications
+            sendNoNotificationSignal()
+        }
     }
     
-    private func updateNotificationSource(data: Data) {
-        Logger.peripheral.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with: '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+    private func sendNoNotificationSignal() {
+        let data = Data(count: 65)
+        Logger.peripheral.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with zeros (Length: \(data.count) bytes)")
         if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
-            Logger.peripheral.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' to '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+            Logger.peripheral.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid))' with zeros (Length: \(data.count) bytes)")
+            self.startIndex = 0 // Success! But we don't want to update the characteristic's value again.
         } else {
-            Logger.peripheral.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid)))' to '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+            Logger.peripheral.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.notificationSource.uuid)))' with zeros (Length: \(data.count) bytes)")
+            self.startIndex = -1 // Just to be safe. peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again and we'll have another try.
         }
     }
     
@@ -88,30 +119,33 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         if request.characteristic.uuid == self.controlPoint.uuid {
             Logger.peripheral.trace("Peripheral attempts to handle controlPoint command")
             guard let data = request.value else {
-                Logger.peripheral.fault("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is nil")
+                Logger.peripheral.fault("ControlPoint command from central '\(printID(request.central.identifier.uuidString))' is nil")
                 peripheral.respond(to: request, withResult: .attributeNotFound)
                 return
             }
             guard data.count == 41 else { // TODO: handle
-                Logger.peripheral.fault("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is not 41 bytes long: '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+                Logger.peripheral.fault("ControlPoint command from central '\(printID(request.central.identifier.uuidString))' is not 41 bytes long: '\(printData(data))' (Length: \(data.count) bytes)")
                 peripheral.respond(to: request, withResult: .invalidAttributeValueLength)
                 return
             }
-            Logger.peripheral.debug("ControlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' is: '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+            Logger.peripheral.debug("ControlPoint command from central '\(printID(request.central.identifier.uuidString))' is: '\(printData(data))' (Length: \(data.count) bytes)")
             if data[0] == 0 { // TODO: handle other CommandIDs
                 let hashedID = data.subdata(in: 1..<33)
                 let destinationAddress = data.subdata(in: 33..<41)
-                Logger.peripheral.trace("Attempting to retrieve notification #\(hashedID) (provided destinationAddress: '\(Address.encode(destinationAddress).suffix(BluetoothConstants.suffixLength))')")
+                Logger.peripheral.trace("Provided destinationAddress for notification #\(printID(hashedID)): '\(destinationAddress.withUnsafeBytes { $0.load(as: UInt64.self) })')") // TODO: endianess?
+                Logger.peripheral.trace("Attempting to retrieve notification #\(printID(hashedID)) from sentQueue")
                 guard let notification = sentQueue[hashedID] else {
-                    Logger.peripheral.error("Notification #\(hashedID) not found in sentQueue") // TODO: handle
+                    Logger.peripheral.error("Notification #\(printID(hashedID)) not found in sentQueue") // TODO: handle
                     return
                 }
-                // TODO: log, refine
+                Logger.peripheral.debug("Retrieved notification #\(printID(hashedID)) from sentQueue, categoryID is \(notification.categoryID)")
                 if notification.categoryID == 1 {
                     sendData(of: notification)
                 } else if notification.categoryID == 2 {
                     if notification.hashedDestinationAddress == Address.hash(destinationAddress) {
                         sendData(of: notification)
+                    } else {
+                        Logger.peripheral.warning("Peripheral won't send data of notification #\(printID(notification.hashedID)), as the hash of of the provided destinationAddress '\(printID(Address.hash(destinationAddress)))' doesn't match the notification's hashedDestinationAddress '\(printID(Address.hash(notification.hashedDestinationAddress)))'")
                     }
                 }
                 
@@ -119,13 +153,13 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
             peripheralManager.respond(to: request, withResult: .success)
             peripheral.respond(to: request, withResult: .success)
         } else {
-            Logger.peripheral.error("Unexpected controlPoint command from central '\(request.central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))': '\(String(data: request.value ?? Data(), encoding: .utf8) ?? "")'")
+            Logger.peripheral.error("Unexpected controlPoint command from central '\(printID(request.central.identifier.uuidString))': '\(printData(request.value))'")
             peripheral.respond(to: request, withResult: .requestNotSupported)
         }
     }
     
     private func sendData(of notification: Notification) {
-        Logger.peripheral.debug("Peripheral attempts to \(#function) of \(notification.hashedID)")
+        Logger.peripheral.debug("Peripheral attempts to \(#function) of #\(printID(notification.hashedID))")
         // notification.categoryID = 2 // TODO: Here we may want to reflect that this notification has been sent to another node
         var data = Data()
         data.append(notification.categoryID)
@@ -133,23 +167,20 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         data.append(notification.hashedSourceAddress ?? Data(count: 32))
         assert(data.count == 65)
         data.append(notification.message?.data(using: .utf8) ?? Data())
-        updateDataSource(data: data)
-    }
-    
-    private func updateDataSource(data: Data) {
-        Logger.peripheral.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with: '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+        Logger.peripheral.debug("Peripheral attempts to updateValue of '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with: '\(printData(data))' (Length: \(data.count) bytes)")
         if peripheralManager.updateValue(data, for: self.dataSource, onSubscribedCentrals: nil) {
-            Logger.peripheral.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid))' to '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+            Logger.peripheral.notice("Peripheral updated value for characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid))' with '\(printData(data))' (Length: \(data.count) bytes)")
+            sentQueue.removeValue(forKey: notification.hashedID)
+            Logger.peripheral.trace("Removed notification #\(printID(notification.hashedID)) from sentQueue")
         } else {
-            Logger.peripheral.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid)))' to '\(data.map { String($0) }.joined())' (Length: \(data.count) bytes)")
+            Logger.peripheral.warning("Peripheral did not update value of characteristic '\(BluetoothConstants.getName(of: self.dataSource.uuid)))' with '\(printData(data))' (Length: \(data.count) bytes)")
         }
     }
     
-    // TODO: log
     private func clearQueue(of central: CBCentral) {
-        Logger.peripheral.trace("In \(#function)")
-        sentQueue = [:]
-        assert(sentQueue.isEmpty)
+        startIndex = 0
+        sentQueue.removeAll()
+        Logger.peripheral.trace("Peripheral cleared its sentQueue")
     }
 
     // MARK: delegate methods
@@ -165,21 +196,21 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         case .unknown:
             Logger.peripheral.warning("\(#function) to 'unknown'")
         case .resetting:
-            Logger.peripheral.warning("\(#function): 'resetting'")
+            Logger.peripheral.warning("\(#function) to 'resetting'")
         case .unsupported:
-            Logger.peripheral.error("\(#function): 'unsupported'")
+            Logger.peripheral.error("\(#function) to 'unsupported'")
         case .unauthorized:
-            Logger.peripheral.error("\(#function): 'unauthorized'")
+            Logger.peripheral.error("\(#function) to 'unauthorized'")
             Logger.peripheral.error("CBManager authorization: \(CBPeripheralManager.authorization.rawValue)")
         case .poweredOff:
-            Logger.peripheral.error("\(#function): 'poweredOff'")
+            Logger.peripheral.error("\(#function) to 'poweredOff'")
         @unknown default:
             Logger.peripheral.error("\(#function) to not implemented state: \(peripheral.state.rawValue)")
         }
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String : Any]) {
-        Logger.peripheral.trace("In \(#function): \(dict)")
+        Logger.peripheral.trace("In \(#function)")
         startAdvertising()
     }
     
@@ -207,17 +238,17 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        Logger.peripheral.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' didSubscribeTo characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))'")
+        Logger.peripheral.info("Central '\(printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))'")
         self.central = central
         stopAdvertising()
         peripheralManager.setDesiredConnectionLatency(.low, for: central)
-        if characteristic.uuid.uuidString == BluetoothConstants.notificationSourceUUID.uuidString {
+        if characteristic.uuid.uuidString == BluetoothConstants.notificationSourceUUID.uuidString && notificationManager.fetchNotificationCount() > 0 {
             sendNotifications()
         }
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        Logger.peripheral.info("Central '\(central.identifier.uuidString.suffix(BluetoothConstants.suffixLength))' didUnsubscribeFrom characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))'")
+        Logger.peripheral.info("Central '\(printID(central.identifier.uuidString))' didUnsubscribeFrom characteristic '\(BluetoothConstants.getName(of: characteristic.uuid))'")
         self.central = nil
         if characteristic.uuid.uuidString == BluetoothConstants.notificationSourceUUID.uuidString { // So we only clear the queue once
             clearQueue(of: central)
@@ -227,5 +258,6 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         Logger.peripheral.notice("\(#function):toUpdateSubscribers") // TODO: handle
+        sendNotifications()
     }
 }

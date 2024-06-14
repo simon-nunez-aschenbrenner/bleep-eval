@@ -36,11 +36,10 @@ struct Font {
 
 struct ContentView: View {
     
-    @Environment(BluetoothManager.self) var bluetoothManager
-    @Environment(\.modelContext) private var modelContext
+    @Environment(NotificationManager.self) var notificationManager
     @State var draft: String = "bleep"
+    @State var destinationAddressString: String = "9234973771377527816"
     let exampleDraftWith459Characters = "A quick brown fox jumps over the lazy dog. Every amazing wizard begs for quick but sleepy zebras. My huge sphinx of quartz vows to blow lazy kites apart. Just quickly vexing zebras from California, Dwight jumps over a lazy fox. The five boxing wizards jump quickly, vexing. Big sphinx of quartz, judge my vow! Amazingly few discotheques provide jukeboxes. A quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. Zebras vex Mr. Fox."
-    @Query var notifications: [Notification] // TODO: filter for our address
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -49,16 +48,26 @@ struct ContentView: View {
             Spacer()
             
             HStack(alignment: .bottom) {
-                Spacer()
+                TextField("Enter address", text: $destinationAddressString)
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .padding()
+                    .cornerRadius(.infinity)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: .infinity)
+                            .stroke(Color("bleepPrimary"), lineWidth: 1)
+                    )
                 Button(action: {
                     draft = exampleDraftWith459Characters
                 }) {
                     Text("\(draft.count)/459")
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .padding()
                         .foregroundColor(Color("bleepPrimary"))
                 }
             }
+            .padding([.leading, .trailing])
+            
             HStack {
                 TextField("Enter message", text: $draft)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
@@ -70,34 +79,40 @@ struct ContentView: View {
                         RoundedRectangle(cornerRadius: .infinity)
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
-                Button(action: {
-                    if !draft.isEmpty {
-                        let notification = Notification(categoryID: 1, sourceAddress: bluetoothManager.address, destinationAddress: Address.Broadcast, message: draft)
-                        modelContext.insert(notification)
-                        do {
-                            try modelContext.save()
-                        } catch {
-                            Logger.notification.fault("Failed to save notification: \(error)")
-                        }
-                    } else {
-                        bluetoothManager.idle()
-                    }
-                    draft = ""
-                }) {
-                    Text(!draft.isEmpty ? "Save" : "Stop")
-                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .padding()
-                        .background(bluetoothManager.modeIsUndefined && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(.infinity)
-                }
-                .disabled(bluetoothManager.modeIsUndefined && draft.isEmpty)
             }
             .padding([.leading, .trailing])
             
+            Button(action: {
+                if !draft.isEmpty {
+                    let destinationAddress = Address(UInt64(destinationAddressString) ?? 0)
+                    let notification = Notification(categoryID: 1, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
+                    notificationManager.insertNotification(notification)
+                } else {
+                    notificationManager.idle()
+                }
+                draft = ""
+            }) {
+                Text(!draft.isEmpty ? "Save" : "Stop")
+                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(notificationManager.isIdling && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
+                    .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                    .cornerRadius(.infinity)
+            }
+            .padding(.horizontal)
+            .disabled(notificationManager.isIdling && draft.isEmpty)
+            
+            Text("Current state: \(notificationManager.state)")
+                .frame(maxWidth: .infinity)
+                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                .foregroundColor(Color("bleepPrimary"))
+                .padding(.top)
+            
             HStack {
                 Button(action: {
-                    bluetoothManager.publish()
+                    notificationManager.saveContext()
+                    notificationManager.publish()
                 }) {
                     Text("Publish")
                         .frame(maxWidth: .infinity)
@@ -108,7 +123,7 @@ struct ContentView: View {
                         .cornerRadius(.infinity)
                 }
                 Button(action: {
-                    bluetoothManager.subscribe()
+                    notificationManager.subscribe()
                 }) {
                     Text("Subscribe")
                         .frame(maxWidth: .infinity)
@@ -119,13 +134,13 @@ struct ContentView: View {
                         .cornerRadius(.infinity)
                 }
             }
-            .padding()
+            .padding(.horizontal)
             
             VStack {
                 Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding(.horizontal)
-                ForEach(notifications) { notification in
+                ForEach(notificationManager.notificationsDisplay) { notification in
                     Text(notification.message ?? "")
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .padding(.horizontal)
@@ -167,5 +182,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(BluetoothManager())
+        .environment(NotificationManager())
 }

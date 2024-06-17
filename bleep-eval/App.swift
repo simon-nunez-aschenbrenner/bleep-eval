@@ -24,7 +24,7 @@ struct bleepEvalApp: App {
     @State var notificationManager: NotificationManager
     
     init() {
-        self.notificationManager = NotificationManager()
+        self.notificationManager = NotificationManager(version: version)
     }
 
     var body: some Scene {

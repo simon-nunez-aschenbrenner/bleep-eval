@@ -14,20 +14,18 @@ import SwiftData
 class Address {
     
     static let Broadcast = Address(0)
+    static let Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
     
     let rawValue: UInt64!
+    
     @Transient var data: Data {
         return withUnsafeBytes(of: rawValue.littleEndian) { Data($0) }
     }
     @Transient var hashed: Data {
-        return Data(SHA256.hash(data: String(rawValue).data(using: .utf8)!))
+        return Data(SHA256.hash(data: data))
     }
     @Transient var base58Encoded: String {
         return Address.encode(rawValue)
-    }
-    @Transient var other: Data {
-        let otherAddress = UInt64(rawValue &- UInt64.random(in: 1...UInt64.max))
-        return withUnsafeBytes(of: otherAddress.littleEndian) { Data($0) }
     }
     
     init() {
@@ -40,15 +38,38 @@ class Address {
         Logger.notification.trace("Address \(printID(self.rawValue)) initialized")
     }
     
+    init?(_ base58: String) {
+        self.rawValue = Address.decode(base58)
+    }
+    
+    static func decode(_ base58: String) -> Address? {
+        return Address(base58)
+    }
+    
+    static func decode(_ base58: String) -> UInt64? {
+        var result = UInt64(0)
+        var integer = UInt64(1)
+        let byteArray = [UInt8](base58.utf8)
+        for char in byteArray.reversed() {
+            guard let alphabetIndex = Alphabet.firstIndex(of: char) else {
+                return nil
+            }
+            result += (integer * UInt64(alphabetIndex))
+            integer &*= 58
+        }
+        return result
+    }
+    
     static func encode(_ integer: UInt64) -> String {
-        Logger.notification.trace("In Address.\(#function)")
-        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var integer = integer
         var result = ""
+        if integer == 0 {
+            return String(Character(Unicode.Scalar(Alphabet[0])))
+        }
         while integer > 0 {
             let remainder = Int(integer % 58)
             integer /= 58
-            result.append(alphabet[remainder])
+            result.append(Character(Unicode.Scalar(Alphabet[remainder])))
         }
         return String(result.reversed())
     }
@@ -59,7 +80,6 @@ class Address {
     }
     
     static func hash(_ data: Data) -> Data {
-        Logger.notification.trace("In Address.\(#function)")
         return Data(SHA256.hash(data: data))
     }
 }

@@ -38,8 +38,7 @@ struct ContentView: View {
     
     @Environment(NotificationManager.self) var notificationManager
     @State var draft: String = "bleep"
-    @State var destinationAddressString: String = "9234973771377527816"
-    let exampleDraftWith459Characters = "A quick brown fox jumps over the lazy dog. Every amazing wizard begs for quick but sleepy zebras. My huge sphinx of quartz vows to blow lazy kites apart. Just quickly vexing zebras from California, Dwight jumps over a lazy fox. The five boxing wizards jump quickly, vexing. Big sphinx of quartz, judge my vow! Amazingly few discotheques provide jukeboxes. A quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. Zebras vex Mr. Fox."
+    @State var destinationAddressString: String = Address.Broadcast.base58Encoded
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -47,8 +46,14 @@ struct ContentView: View {
                 .padding(.vertical)
             Spacer()
             
+            Text("Source address: \(notificationManager.address.base58Encoded) (\(printID(notificationManager.address.hashed)))")
+                .frame(maxWidth: .infinity)
+                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                .foregroundColor(Color("bleepPrimary"))
+                .padding(.top)
+            
             HStack(alignment: .bottom) {
-                TextField("Enter address", text: $destinationAddressString)
+                TextField("Enter destination address", text: $destinationAddressString)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
@@ -59,9 +64,9 @@ struct ContentView: View {
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
                 Button(action: {
-                    draft = exampleDraftWith459Characters
+                    draft = generateText(with: maxMessageLength)
                 }) {
-                    Text("\(draft.count)/459")
+                    Text("\(draft.count)/\(maxMessageLength)")
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                 }
@@ -79,29 +84,27 @@ struct ContentView: View {
                         RoundedRectangle(cornerRadius: .infinity)
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
+                Button(action: {
+                    if !draft.isEmpty {
+                        let destinationAddress = Address(destinationAddressString) ?? Address.Broadcast
+                        let notification = Notification(categoryID: 1, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
+                        notificationManager.insertNotification(notification)
+                    } else {
+                        notificationManager.idle()
+                    }
+                    draft = ""
+                }) {
+                    Text(!draft.isEmpty ? "Save" : "Stop")
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(notificationManager.isIdling && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(.infinity)
+                }
+                .disabled(notificationManager.isIdling && draft.isEmpty)
             }
             .padding([.leading, .trailing])
-            
-            Button(action: {
-                if !draft.isEmpty {
-                    let destinationAddress = Address(UInt64(destinationAddressString) ?? 0)
-                    let notification = Notification(categoryID: 1, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
-                    notificationManager.insertNotification(notification)
-                } else {
-                    notificationManager.idle()
-                }
-                draft = ""
-            }) {
-                Text(!draft.isEmpty ? "Save" : "Stop")
-                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(notificationManager.isIdling && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
-                    .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                    .cornerRadius(.infinity)
-            }
-            .padding(.horizontal)
-            .disabled(notificationManager.isIdling && draft.isEmpty)
             
             Text("Current state: \(notificationManager.state)")
                 .frame(maxWidth: .infinity)
@@ -136,17 +139,40 @@ struct ContentView: View {
             }
             .padding(.horizontal)
             
-            VStack {
+            VStack(alignment: .leading) {
                 Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .padding(.horizontal)
-                ForEach(notificationManager.notificationsDisplay) { notification in
-                    Text(notification.message ?? "")
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .padding(.horizontal)
+                    .padding()
+                List(notificationManager.notificationsDisplay) { notification in
+                    NotificationView(notification: notification)
                 }
             }
             Spacer()
+        }
+    }
+}
+
+// MARK: NotificationView
+
+struct NotificationView: View {
+    let notification: Notification
+    @State private var showsMetadata = false
+
+    var body: some View {
+        Button(action: {
+            showsMetadata.toggle()
+        }) {
+            Text(displayText)
+                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                .foregroundColor(Color("bleepPrimary"))
+        }
+    }
+
+    private var displayText: String {
+        if showsMetadata {
+            return "#\(printID(notification.hashedID)) [\(notification.categoryID ?? UInt8.max)] \(printID(notification.hashedSourceAddress)) → \(notification.hashedDestinationAddress == Address.Broadcast.hashed ? "Broadcast" : printID(notification.hashedDestinationAddress))"
+        } else {
+            return notification.message ?? ""
         }
     }
 }
@@ -182,5 +208,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(NotificationManager())
+        .environment(NotificationManager(version: version))
 }

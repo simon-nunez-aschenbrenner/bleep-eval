@@ -24,33 +24,6 @@ enum BluetoothMode: Int, CustomStringConvertible {
     }
 }
 
-struct BluetoothConstants {
-
-    static let peripheralName = "bleeper"
-    static let centralIdentifierKey = "com.simon.bleep-eval.central"
-    static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
-    
-    static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
-    static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
-    static let controlPointUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
-    static let dataSourceUUID = CBUUID(string: "3aaea559-47c6-4cb7-9ca4-eda14b8c05a5")
-    
-    static func getName(of cbuuid: CBUUID) -> String {
-        switch cbuuid.uuidString {
-        case serviceUUID.uuidString:
-            return "Bleep Notification Service"
-        case notificationSourceUUID.uuidString:
-            return "Notification Source Characteristic"
-        case controlPointUUID.uuidString:
-            return "Control Point Characteristic"
-        case dataSourceUUID.uuidString:
-            return "Data Source Characteristic"
-        default:
-            return cbuuid.uuidString
-        }
-    }
-}
-
 @Observable
 class BluetoothManager: NSObject {
     
@@ -59,9 +32,9 @@ class BluetoothManager: NSObject {
     private var peripheralManagerDelegate: PeripheralManagerDelegate!
     private var centralManagerDelegate: CentralManagerDelegate!
     
-    private var mode: BluetoothMode! {
+    private(set) var mode: BluetoothMode! {
         didSet {
-            Logger.bluetooth.notice("BluetoothManager mode set to '\(self.mode)'")
+            Logger.bluetooth.notice("BluetoothManager set mode to '\(self.mode)'")
         }
     }
     
@@ -81,7 +54,7 @@ class BluetoothManager: NSObject {
     private func initMode() {
         let isScanning = centralManagerDelegate.centralManager.isScanning
         let isAdvertising = peripheralManagerDelegate.peripheralManager.isAdvertising
-        Logger.bluetooth.trace("In \(#function): isScanning = \(isScanning), isAdvertising = \(isAdvertising)")
+        Logger.bluetooth.trace("BluetoothManager will \(#function) based on centralManager.isScanning = \(isScanning) and peripheralManager.isAdvertising = \(isAdvertising)")
         if isAdvertising && isScanning { // TODO: handle
             Logger.bluetooth.fault("Could not \(#function): isScanning = \(isScanning), isAdvertising = \(isAdvertising)")
             self.mode = .undefined

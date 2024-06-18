@@ -39,13 +39,13 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     // MARK: public methods
     
     func startAdvertising() {
-        let maxSupportedCategoryID = 2
+        let maxSupportedVersion = 1
         Logger.peripheral.trace("Peripheral may attempt to \(#function)")
-        guard notificationManager.version <= maxSupportedCategoryID else { // TODO: handle
-            Logger.peripheral.fault("Peripheral can only startAdvertising with categoryIDs < \(maxSupportedCategoryID + 1), but notificationManager is initialized as version \(self.notificationManager.version)")
+        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
+            Logger.peripheral.fault("Peripheral startAdvertising() only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
             return
         }
-        let notificationCount = notificationManager.fetchNotificationCount(withCategoryIDs: [1,2])
+        let notificationCount = notificationManager.fetchCount(with: [1,2])
         if peripheralManager.isAdvertising {
             Logger.peripheral.debug("Peripheral is already advertising")
         } else if peripheralManager.state == .poweredOn && bluetoothManager.modeIsPeripheral && central == nil && notificationCount > 0 {
@@ -68,15 +68,15 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     // MARK: private methods
     
     private func sendNotifications() {
-        let maxSupportedCategoryID = 2
+        let maxSupportedVersion = 1
         Logger.peripheral.trace("Peripheral attempts to \(#function)")
-        guard notificationManager.version <= maxSupportedCategoryID else { // TODO: handle
-            Logger.peripheral.fault("Peripheral can only sendNotifications with categoryIDs < \(maxSupportedCategoryID + 1), but notificationManager is initialized as version \(self.notificationManager.version)")
+        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
+            Logger.peripheral.fault("Peripheral sendNotifications() only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
             return
         }
         if self.sendQueue.isEmpty {
             Logger.peripheral.trace("Peripheral attempts to populate the sendQueue")
-            let notifications = notificationManager.fetchAllNotifications(withCategoryIDs: [1,2])
+            let notifications = notificationManager.fetchAll(with: [1,2])
             if notifications == nil || notifications!.isEmpty {
                 Logger.peripheral.notice("Peripheral has no notifications to add to the sendQueue")
             } else {
@@ -86,16 +86,17 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         }
         var endedSuccessfully = true // To sendNoNotificationSignal() in case there are no (more) notifications in the sendQueue
         for notification in self.sendQueue {
-            guard notification.categoryID > 0 else {
-                Logger.peripheral.trace("Skipping notification #\(printID(notification.hashedID)) because its categoryID is 0")
+            guard notification.destinationControlValue > 0 else {
+                Logger.peripheral.trace("Skipping notification #\(printID(notification.hashedID)) because its destinationControlValue is 0")
                 continue
             }
-            Logger.peripheral.debug("Peripheral attempts to sendNotification #\(printID(notification.hashedID)) with message: '\(notification.message ?? "")'")
+            Logger.peripheral.debug("Peripheral attempts to sendNotification #\(printID(notification.hashedID)) with message: '\(notification.message)'")
             var data = Data()
-            data.append(notification.categoryID)
+            data.append(notification.controlByte)
             data.append(notification.hashedID)
             data.append(notification.hashedDestinationAddress)
             data.append(notification.hashedSourceAddress)
+            data.append(notification.sentTimestampData)
             assert(data.count == minMessageLength)
             if let messageData = notification.message.data(using: .utf8) {
                 data.append(messageData)
@@ -103,17 +104,18 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
             Logger.peripheral.trace("Peripheral attempts to updateValue of '\(getName(of: self.notificationSource.uuid))'")
             if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
                 Logger.peripheral.notice("Peripheral updated value of '\(getName(of: self.notificationSource.uuid))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
-                notification.categoryID = 0
+                try! notification.setDestinationControl(to: 0)
                 endedSuccessfully = true
                 continue
             } else {
                 Logger.peripheral.warning("Peripheral did not update value of '\(getName(of: self.notificationSource.uuid)))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
                 endedSuccessfully = false
+                break
                 // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again.
             }
         }
         if endedSuccessfully {
-            Logger.peripheral.trace("Peripheral's \(#function) loop endedSuccessfully, removing all notifications from the sendQueue")
+            Logger.peripheral.trace("Peripheral \(#function) skipped or ended the loop successfully and is removing all notifications from the sendQueue")
             self.sendQueue.removeAll()
             sendNoNotificationSignal()
         }

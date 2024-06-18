@@ -20,7 +20,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     let characteristicUUID = BluetoothConstants.notificationSourceUUID
     
     var peripheral: CBPeripheral? // TODO: multiple peripherals
-    var storedNotificationHashIDs: [Data] = []
+    var storedNotificationHashedIDs: [Data] = []
     
     // MARK: initializing methods
             
@@ -71,41 +71,43 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     private func handleNotificationSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        let maxSupportedCategoryID = 2
+        let maxSupportedVersion = 1
         Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
-        guard notificationManager.version <= maxSupportedCategoryID else { // TODO: handle
-            Logger.central.fault("Central can only handleNotificationSourceUpdate with categoryIDs < \(maxSupportedCategoryID + 1), but notificationManager is initialized as version \(self.notificationManager.version)")
+        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
+            Logger.central.fault("Central handleNotificationSourceUpdate only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
             return
         }
         guard data.count >= minMessageLength else { // TODO: handle
             Logger.central.warning("Central will ignore notificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count) bytes as it's not at least \(minMessageLength) bytes long")
             return
         }
-        let categoryID = UInt8(data[0])
-        if categoryID == 0 { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect and clear the Queue
+        let controlByte = ControlByte(value: UInt8(data[0]))
+        if controlByte.destinationControlValue == 0 { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect and clear the Queue
             Logger.central.notice("NotificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' indicates no more notifications")
+            notificationManager.save()
             disconnect(from: peripheral)
-        } else if categoryID <= maxSupportedCategoryID {
+        } else if controlByte.value <= notificationManager.maxSupportedControlByteValue {
             let hashedID = data.subdata(in: 1..<33)
             Logger.central.trace("Central checks if there's already a notification #\(printID(hashedID)) in storage")
-            if storedNotificationHashIDs.contains(hashedID) {
+            if storedNotificationHashedIDs.contains(hashedID) {
                 Logger.central.info("Central will ignore notificationSourceUpdate #\(printID(hashedID)) from peripheral '\(printID(peripheral.identifier.uuidString))' as this notification is already stored")
                 return
             }
             let hashedDestinationAddress = data.subdata(in: 33..<65)
-            if categoryID == 2 && !(hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed) {
+            if controlByte.destinationControlValue == 2 && !(hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed) {
                 Logger.central.info("Central will ignore notificationSourceUpdate #\(printID(hashedID)), as its hashedDestinationAddress '\(printID(hashedDestinationAddress))' doesn't match this notificationManager's hashed address '\(printID(self.notificationManager.address.hashed))' or the hashed broadcast address '\(printID(Address.Broadcast.hashed))'")
                 return
             }
             let hashedSourceAddress = data.subdata(in: 65..<97)
-            let messageData = data.subdata(in: 97..<data.count)
+            let sentTimestampData = data.subdata(in: 97..<105)
+            let messageData = data.subdata(in: 105..<data.count)
             let message: String = String(data: messageData, encoding: .utf8) ?? ""
-            let notification = Notification(categoryID: categoryID, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, message: message)
-            notificationManager.insertNotification(notification)
-            storedNotificationHashIDs.append(notification.hashedID)
-            Logger.peripheral.notice("Central successfully received notification #\(printID(notification.hashedID)) with message: '\(notification.message ?? "")'")
+            let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
+            notificationManager.insert(notification)
+            storedNotificationHashedIDs.append(notification.hashedID)
+            Logger.peripheral.notice("Central successfully received notification #\(printID(notification.hashedID)) with message: '\(notification.message)'")
             if hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed {
-                notificationManager.updateNotificationsDisplay()
+                notificationManager.updateView(with: notification)
             }
         }
     }
@@ -144,7 +146,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         self.peripheral = peripheral
         peripheral.delegate = self
         stopScan()
-        storedNotificationHashIDs = notificationManager.fetchAllNotificationHashIDs() ?? []
+        storedNotificationHashedIDs = notificationManager.fetchAllHashedIDs() ?? []
         centralManager.connect(peripheral, options: nil)
     }
     

@@ -86,9 +86,10 @@ struct ContentView: View {
                     )
                 Button(action: {
                     if !draft.isEmpty {
-                        let destinationAddress = Address(destinationAddressString) ?? Address.Broadcast
-                        let notification = Notification(categoryID: 1, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
-                        notificationManager.insertNotification(notification)
+                        let destinationAddress = Address(Address.decode(destinationAddressString) ?? 0)
+                        let controlByte = try! ControlByte(protocolValue: 0, destinationControlValue: 1, sequenceNumberValue: 0)
+                        let notification = Notification(controlByte: controlByte, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
+                        notificationManager.insert(notification)
                     } else {
                         notificationManager.idle()
                     }
@@ -114,7 +115,7 @@ struct ContentView: View {
             
             HStack {
                 Button(action: {
-                    notificationManager.saveContext()
+                    notificationManager.save()
                     notificationManager.publish()
                 }) {
                     Text("Publish")
@@ -143,7 +144,7 @@ struct ContentView: View {
                 Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding()
-                List(notificationManager.notificationsDisplay) { notification in
+                List(notificationManager.notificationView) { notification in
                     NotificationView(notification: notification)
                 }
             }
@@ -170,9 +171,9 @@ struct NotificationView: View {
 
     private var displayText: String {
         if showsMetadata {
-            return "#\(printID(notification.hashedID)) [\(notification.categoryID ?? UInt8.max)] \(printID(notification.hashedSourceAddress)) → \(notification.hashedDestinationAddress == Address.Broadcast.hashed ? "Broadcast" : printID(notification.hashedDestinationAddress))"
+            return notification.description
         } else {
-            return notification.message ?? ""
+            return notification.message
         }
     }
 }

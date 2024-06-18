@@ -8,10 +8,14 @@
 import CoreBluetooth
 import Foundation
 
-let maxMessageLength: Int = 427
-let minMessageLength: Int = 97
+let minMessageLength: Int = 105
+let maxMessageLength: Int = 524 - minMessageLength
 let suffixLength: Int = 5
-let version: UInt8 = 2
+let version: Int = 1
+
+enum BleepError: Error {
+    case invalidControlByteValue
+}
 
 struct BluetoothConstants {
     static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
@@ -20,6 +24,21 @@ struct BluetoothConstants {
     static let peripheralName = "bleeper"
     static let centralIdentifierKey = "com.simon.bleep-eval.central"
     static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
+}
+
+func generateText(with length: Int = maxMessageLength) -> String {
+    let end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210"
+    var result = ""
+    if end.count > length {
+        result = String(end.suffix(length))
+    } else {
+        for _ in 0..<length - end.count {
+            result.append(Character(Unicode.Scalar(UInt8.random(in: 21...126))))
+        }
+        result.append(end)
+    }
+    assert(result.count == length)
+    return result
 }
 
 func getName(of cbuuid: CBUUID) -> String {
@@ -31,11 +50,6 @@ func getName(of cbuuid: CBUUID) -> String {
     default:
         return "'\(cbuuid.uuidString)'"
     }
-}
-
-func printData(_ data: Data?) -> String {
-    // return data.map { String($0) }.joined()
-    return data?.base64EncodedString() ?? ""
 }
 
 func printID(_ data: Data?) -> String {
@@ -50,17 +64,6 @@ func printID(_ string: String?) -> String {
     return String(string?.suffix(suffixLength) ?? "")
 }
 
-func generateText(with length: Int) -> String {
-    let end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210"
-    var result = ""
-    if end.count > length {
-        result = String(end.suffix(length))
-    } else {
-        for _ in 0..<length - end.count {
-            result.append(Character(Unicode.Scalar(UInt8.random(in: 21...126))))
-        }
-        result.append(end)
-    }
-    assert(result.count == length)
-    return result
+func printTimestamp(_ date: Date) -> String {
+    return String(date.description.dropLast(6))
 }

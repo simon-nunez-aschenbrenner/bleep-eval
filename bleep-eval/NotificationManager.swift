@@ -6,45 +6,14 @@
 //
 
 import Foundation
-import CryptoKit
 import SwiftData
 import OSLog
-
-@Model
-class Notification {
-    
-    var categoryID: UInt8!
-    @Attribute(.unique) let hashedID: Data!
-    let hashedSourceAddress: Data!
-    let hashedDestinationAddress: Data!
-    let message: String!
-    
-    init(categoryID: UInt8!, sourceAddress: Address!, destinationAddress: Address!, message: String!) {
-        self.categoryID = categoryID
-        let id = String(sourceAddress.rawValue).appendingFormat("%064u", UInt64.random(in: UInt64.min...UInt64.max)) // TODO: replace with UInt128 in the future
-        self.hashedID = Data(SHA256.hash(data: id.data(using: .utf8)!))
-        self.hashedSourceAddress = sourceAddress.hashed
-        self.hashedDestinationAddress = destinationAddress.hashed
-        self.message = message
-        // Logger.notification.trace("Initialized Notification")
-        Logger.notification.debug("Initialized Notification #\(printID(self.hashedID)) with destinationAddress rawValue '\(destinationAddress.rawValue)', hashedDestinationAddress '\(printID(self.hashedDestinationAddress))' and message '\(self.message)'") // TODO: delete
-    }
-    
-    init(categoryID: UInt8!, hashedID: Data!, hashedDestinationAddress: Data!, hashedSourceAddress: Data!, message: String!) {
-        self.categoryID = categoryID
-        self.hashedID = hashedID
-        self.hashedSourceAddress = hashedSourceAddress
-        self.hashedDestinationAddress = hashedDestinationAddress
-        self.message = message
-        // Logger.notification.trace("Initialized Notification")
-        Logger.notification.debug("Initialized Notification #\(printID(self.hashedID)) with hashedDestinationAddress '\(printID(self.hashedDestinationAddress))' and message '\(self.message)'") // TODO: delete
-    }
-}
 
 @Observable
 class NotificationManager: NSObject {
     
-    let version: UInt8! // equivalent to maximum supported categoryID
+    let version: Int!
+    var maxSupportedControlByteValue: Int { return (self.version * 64) - 1 }
     
     private var container: ModelContainer!
     private var context: ModelContext!
@@ -52,24 +21,16 @@ class NotificationManager: NSObject {
     private(set) var address: Address!
     private var bluetoothManager: BluetoothManager!
     
-    var notificationsDisplay: [Notification] = []
+    var notificationView: [Notification] = []
     
-    var isPublishing: Bool {
-        return bluetoothManager.modeIsPeripheral
-    }
-    var isSubscribing: Bool {
-        return bluetoothManager.modeIsCentral
-    }
-    var isIdling: Bool {
-        return bluetoothManager.modeIsUndefined
-    }
-    var state: String {
-        return bluetoothManager.mode.description
-    }
+    var isPublishing: Bool { return bluetoothManager.modeIsPeripheral }
+    var isSubscribing: Bool { return bluetoothManager.modeIsCentral }
+    var isIdling: Bool { return bluetoothManager.modeIsUndefined }
+    var state: String { return bluetoothManager.mode.description }
     
     // MARK: initializing methods
     
-    init(version: UInt8) {
+    init(version: Int) {
         self.version = version
         super.init()
         self.bluetoothManager = BluetoothManager(notificationManager: self)
@@ -87,13 +48,13 @@ class NotificationManager: NSObject {
             Logger.notification.info("NotificationManager is creating a new address")
             let address = Address()
             context.insert(address)
-            saveContext()
+            save()
             self.address = address
         } else {
             self.address = fetchResult![0]
             Logger.notification.trace("NotificationManager found its address in storage")
         }
-        Logger.notification.debug("NotificationManager full rawValue '\(self.address!.rawValue)', full base58Encoded '\(self.address!.base58Encoded)' and shortened hashed '\(printID(self.address!.hashed))' address")
+        Logger.notification.debug("NotificationManager address: \(self.address!.base58Encoded) (\(printID(self.address!.hashed)))")
         assert(self.address!.rawValue == Address.decode(self.address!.base58Encoded)) // TODO: delete
     }
     
@@ -116,44 +77,51 @@ class NotificationManager: NSObject {
     
     // MARK: view related methods
     
-    func updateNotificationsDisplay() { // TODO: change name
+    func updateView() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let countBefore = notificationsDisplay.count
-        saveContext()
-        notificationsDisplay = fetchAllNotifications(for: self.address.hashed, includingBroadcast: true) ?? []
-        Logger.notification.debug("NotificationManager added \(self.notificationsDisplay.count - countBefore) notifications to the notificationsDisplay")
-        Logger.notification.trace("NotificationManager notificationsDisplay: \(self.notificationsDisplay)")
+        let countBefore = notificationView.count
+        save()
+        notificationView = fetchAll(for: self.address.hashed, includingBroadcast: true) ?? []
+        Logger.notification.debug("NotificationManager added \(self.notificationView.count - countBefore) notification(s) to the notificationView")
+    }
+    
+    func updateView(with notification: Notification) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) #\(printID(notification.hashedID))")
+        let countBefore = notificationView.count
+        save()
+        notificationView.insert(notification, at: 0)
+        Logger.notification.debug("NotificationManager added \(self.notificationView.count - countBefore) notification to the notificationView")
     }
     
     // MARK: counting methods
     
-    func fetchNotificationCount() -> Int {
+    func fetchCount() -> Int {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         let result = try? context.fetchCount(FetchDescriptor<Notification>())
         return result ?? 0
     }
     
-    func fetchNotificationCount(withCategoryIDs categoryIDs: [UInt8]) -> Int {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let fetchDescriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in categoryIDs.contains(notification.categoryID) })
-        let result = try? context.fetchCount(fetchDescriptor)
+    func fetchCount(with destinationControlValues: [UInt8]) -> Int {
+        Logger.notification.debug("NotificationManager attempts to \(#function) \(destinationControlValues)")
+        let descriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in destinationControlValues.contains(notification.destinationControlValue) })
+        let result = try? context.fetchCount(descriptor)
         return result ?? 0
     }
     
     // MARK: fetching methods
     
-    func fetchAllNotifications() -> [Notification]? {
+    func fetchAll() -> [Notification]? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         return try? context.fetch(FetchDescriptor<Notification>())
     }
     
-    func fetchAllNotifications(withCategoryIDs categoryIDs: [UInt8]) -> [Notification]? {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let fetchDescriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in categoryIDs.contains(notification.categoryID) })
-        return try? context.fetch(fetchDescriptor)
+    func fetchAll(with destinationControlValues: [UInt8]) -> [Notification]? {
+        Logger.notification.debug("NotificationManager attempts to \(#function) \(destinationControlValues)")
+        let descriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in destinationControlValues.contains(notification.destinationControlValue) })
+        return try? context.fetch(descriptor)
     }
     
-    func fetchAllNotifications(for hashedAddress: Data, includingBroadcast: Bool = false) -> [Notification]? {
+    func fetchAll(for hashedAddress: Data, includingBroadcast: Bool = false) -> [Notification]? {
         Logger.notification.debug("NotificationManager attempts to \(#function) for hashedAddress '\(printID(hashedAddress))'\(includingBroadcast ? " and broadcasts" : "")")
         let hashedBroadcastAddress = Data(Address.Broadcast.hashed)
         let predicate = #Predicate<Notification> {
@@ -169,15 +137,15 @@ class NotificationManager: NSObject {
         return try? context.fetch(descriptor)
     }
     
-    func fetchAllNotificationHashIDs() -> [Data]? {
+    func fetchAllHashedIDs() -> [Data]? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        guard let results = fetchAllNotifications() else {
+        guard let results = fetchAll() else {
             return nil
         }
         return results.map { $0.hashedID }
     }
     
-    func fetchNotification(hashedID: Data) -> Notification? {
+    func fetch(with hashedID: Data) -> Notification? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         let fetchDescriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in notification.hashedID == hashedID })
         return try? context.fetch(fetchDescriptor)[0]
@@ -185,13 +153,13 @@ class NotificationManager: NSObject {
     
     // MARK: insertion methods
     
-    func insertNotification(_ notification: Notification, andSave: Bool = false) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) #\(printID(notification.hashedID)) with message '\(notification.message ?? "")'")
+    func insert(_ notification: Notification, andSave: Bool = false) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID)) with message '\(notification.message)'")
         context.insert(notification)
-        andSave ? saveContext() : ()
+        andSave ? save() : ()
     }
     
-    func saveContext() {
+    func save() {
         do {
             try context.save()
             Logger.notification.trace("NotificationManager saved the context")
@@ -200,6 +168,11 @@ class NotificationManager: NSObject {
         }
     }
     
-    // TODO: delete every notification automatically some time after receiving
-    // TODO: regenerate address
+    // TODO: deletion methods
+}
+
+// MARK: Spray and Wait extension
+
+extension NotificationManager {
+    
 }

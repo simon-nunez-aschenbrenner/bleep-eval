@@ -68,7 +68,7 @@ class Notification: CustomStringConvertible {
     let message: String!
     
     var description: String {
-        return "#\(printID(hashedID)) [P=\(protocolValue!) D=\(destinationControlValue!) S=\(sequenceNumberValue!)] from (\(printID(hashedSourceAddress))) at \(printTimestamp(sentTimestamp)) to (\(printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + printTimestamp(receivedTimestamp!))"
+        return "#\(printID(hashedID)) [P=\(protocolValue!) D=\(destinationControlValue!) S=\(sequenceNumberValue!)] from (\(printID(hashedSourceAddress))) at \(printTimestamp(sentTimestamp)) to (\(printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + printTimestamp(receivedTimestamp!)) and message length \(message.count)"
     }
     
     // Used by sender

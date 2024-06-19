@@ -18,19 +18,26 @@ extension Logger {
     static let central = Logger(subsystem: subsystem, category: "central")
 }
 
+struct NotificationManagerKey: EnvironmentKey {
+    static let defaultValue: SimpleNotificationManager = SimpleNotificationManager(connectionManagerType: BluetoothManager.self)
+}
+
+extension EnvironmentValues {
+    var notificationManager: SimpleNotificationManager {
+        get { self[NotificationManagerKey.self] }
+        set { self[NotificationManagerKey.self] = newValue }
+    }
+}
+
 @main
 struct bleepEvalApp: App {
-    
-    @State var notificationManager: NotificationManager
-    
-    init() {
-        self.notificationManager = NotificationManager(version: version)
-    }
+
+    @State private var notificationManager = SimpleNotificationManager(connectionManagerType: BluetoothManager.self)
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(notificationManager)
+                .environment(\.notificationManager, notificationManager)
         }
     }
 }

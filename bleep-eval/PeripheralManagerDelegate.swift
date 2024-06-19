@@ -39,21 +39,16 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     // MARK: public methods
     
     func startAdvertising() {
-        let maxSupportedVersion = 1
         Logger.peripheral.trace("Peripheral may attempt to \(#function)")
-        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
-            Logger.peripheral.fault("Peripheral startAdvertising() only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
-            return
-        }
         let notificationCount = notificationManager.fetchCount(with: [1,2])
         if peripheralManager.isAdvertising {
             Logger.peripheral.debug("Peripheral is already advertising")
-        } else if peripheralManager.state == .poweredOn && bluetoothManager.modeIsPeripheral && central == nil && notificationCount > 0 {
-            Logger.peripheral.info("Peripheral attempts to \(#function) as '\(self.name)' with service '\(getName(of: self.service.uuid))' to centrals")
+        } else if peripheralManager.state == .poweredOn && bluetoothManager.mode.isProvider && central == nil && notificationCount > 0 {
+            Logger.peripheral.debug("Peripheral attempts to \(#function) as '\(self.name)' with service '\(getName(of: self.service.uuid))' to centrals")
             peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [self.service.uuid], CBAdvertisementDataLocalNameKey: self.name])
         } else {
-            Logger.peripheral.notice("Peripheral won't attempt to \(#function)")
-            Logger.peripheral.debug("PeripheralState is \(self.peripheralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.modeIsPeripheral ? "peripheral" : "NOT peripheral"), central property is \(self.central == nil ? "nil" : "NOT nil"), notificationCount is \(!(notificationCount > 0) ? "ZERO" : String(notificationCount))")
+            Logger.peripheral.info("Peripheral won't attempt to \(#function)")
+            Logger.peripheral.debug("PeripheralState is \(self.peripheralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.mode.isProvider ? "peripheral" : "NOT peripheral"), central property is \(self.central == nil ? "nil" : "NOT nil"), notificationCount is \(!(notificationCount > 0) ? "ZERO" : String(notificationCount))")
             if central != nil { // TODO: && notificationCount > 0 ?
                 sendNotifications()
             }
@@ -68,17 +63,12 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     // MARK: private methods
     
     private func sendNotifications() {
-        let maxSupportedVersion = 1
         Logger.peripheral.trace("Peripheral attempts to \(#function)")
-        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
-            Logger.peripheral.fault("Peripheral sendNotifications() only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
-            return
-        }
         if self.sendQueue.isEmpty {
             Logger.peripheral.trace("Peripheral attempts to populate the sendQueue")
             let notifications = notificationManager.fetchAll(with: [1,2])
             if notifications == nil || notifications!.isEmpty {
-                Logger.peripheral.notice("Peripheral has no notifications to add to the sendQueue")
+                Logger.peripheral.debug("Peripheral has no notifications to add to the sendQueue")
             } else {
                 self.sendQueue = notifications!
                 Logger.peripheral.debug("Peripheral has successfully populated the sendQueue with \(self.sendQueue.count) notifications")
@@ -103,7 +93,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
             }
             Logger.peripheral.trace("Peripheral attempts to updateValue of '\(getName(of: self.notificationSource.uuid))'")
             if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
-                Logger.peripheral.notice("Peripheral updated value of '\(getName(of: self.notificationSource.uuid))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
+                Logger.peripheral.info("Peripheral updated value of '\(getName(of: self.notificationSource.uuid))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
                 try! notification.setDestinationControl(to: 0)
                 endedSuccessfully = true
                 continue
@@ -126,7 +116,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         let data = Data(count: minMessageLength)
         Logger.peripheral.debug("Peripheral attempts to updateValue of '\(getName(of: self.notificationSource.uuid))'")
         if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
-            Logger.peripheral.notice("Peripheral updated value for characteristic '\(getName(of: self.notificationSource.uuid))' with \(data.count) zeros")
+            Logger.peripheral.info("Peripheral updated value for characteristic '\(getName(of: self.notificationSource.uuid))' with \(data.count) zeros")
         } else {
             Logger.peripheral.warning("Peripheral did not update value of characteristic '\(getName(of: self.notificationSource.uuid)))' with \(data.count) zeros")
             //sendNoNotificationSignal() was not succesful. peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() and try to sendNoNotificationSignal() again.
@@ -138,7 +128,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
-            Logger.peripheral.notice("\(#function) to 'poweredOn'")
+            Logger.peripheral.debug("\(#function) to 'poweredOn'")
             peripheralManager.removeAllServices()
             peripheralManager.add(self.service)
             startAdvertising()
@@ -168,7 +158,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         if (error != nil) { // TODO: handle
             Logger.peripheral.fault("Peripheral did not add service '\(getName(of: service.uuid))': \(error!.localizedDescription)")
         } else {
-            Logger.peripheral.info("Peripheral added service '\(getName(of: service.uuid))'")
+            Logger.peripheral.debug("Peripheral added service '\(getName(of: service.uuid))'")
         }
     }
     
@@ -176,7 +166,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         if (error != nil) { // TODO: handle
             Logger.peripheral.fault("Peripheral did not start advertising: \(error!.localizedDescription)")
         } else {
-            Logger.peripheral.notice("Peripheral started advertising")
+            Logger.peripheral.info("Peripheral started advertising")
         }
     }
     
@@ -203,7 +193,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     }
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
-        Logger.peripheral.notice("\(#function):toUpdateSubscribers")
+        Logger.peripheral.debug("\(#function):toUpdateSubscribers")
         sendNotifications()
     }
 }

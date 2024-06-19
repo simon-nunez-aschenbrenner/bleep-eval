@@ -10,39 +10,30 @@ import CoreBluetooth
 import CryptoKit
 import OSLog
 
-enum BluetoothMode: Int, CustomStringConvertible {
-    case central = -1 // Subscriber / Notification Consumer (NC)
-    case undefined = 0
-    case peripheral = 1 // Publisher / Notification Provider (NP)
+struct BluetoothConstants {
+    static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
+    static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
     
-    var description: String {
-        switch self {
-        case .central: return "Central"
-        case .undefined: return "Undefined"
-        case .peripheral:  return "Peripheral"
-        }
-    }
+    static let peripheralName = "bleeper"
+    static let centralIdentifierKey = "com.simon.bleep-eval.central"
+    static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
 }
 
 @Observable
-class BluetoothManager: NSObject {
-    
+class BluetoothManager: NSObject, ConnectionManager {
+
     unowned var notificationManager: NotificationManager!
     
-    private var peripheralManagerDelegate: PeripheralManagerDelegate!
-    private var centralManagerDelegate: CentralManagerDelegate!
+    private var peripheralManagerDelegate: PeripheralManagerDelegate! // Provider
+    private var centralManagerDelegate: CentralManagerDelegate! // Consumer
     
-    private(set) var mode: BluetoothMode! {
+    private(set) var mode: DeviceMode! {
         didSet {
-            Logger.bluetooth.notice("BluetoothManager set mode to '\(self.mode)'")
+            Logger.bluetooth.info("BluetoothManager set mode to '\(self.mode)'")
         }
     }
     
-    var modeIsPeripheral: Bool { return !(mode.rawValue < 1) }
-    var modeIsCentral: Bool { return !(mode.rawValue > -1) }
-    var modeIsUndefined: Bool { return mode.rawValue == 0 }
-    
-    init(notificationManager: NotificationManager) {
+    required init(notificationManager: NotificationManager) {
         super.init()
         self.notificationManager = notificationManager
         self.peripheralManagerDelegate = PeripheralManagerDelegate(notificationManager: notificationManager, bluetoothManager: self)
@@ -61,23 +52,22 @@ class BluetoothManager: NSObject {
         } else if !isAdvertising && !isScanning {
             self.mode = .undefined
         } else if isScanning {
-            self.mode = .central
+            self.mode = .consumer
         } else if isAdvertising {
-            self.mode = .peripheral
+            self.mode = .provider
         }
     }
     
-    func setMode(to mode: BluetoothMode) {
+    func setMode(to mode: DeviceMode) {
         self.mode = mode
         switch mode {
-        case .central:
+        case .consumer:
             peripheralManagerDelegate.stopAdvertising()
             centralManagerDelegate.startScan()
-        case .peripheral:
+        case .provider:
             centralManagerDelegate.stopScan()
             centralManagerDelegate.disconnect()
             peripheralManagerDelegate.startAdvertising()
-            
         case .undefined:
             centralManagerDelegate.stopScan()
             centralManagerDelegate.disconnect()

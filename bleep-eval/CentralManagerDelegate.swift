@@ -38,11 +38,12 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         Logger.peripheral.trace("Central may attempt to \(#function)")
         if centralManager.isScanning {
             Logger.peripheral.debug("Central is already scanning")
-        } else if centralManager.state == .poweredOn && bluetoothManager.modeIsCentral && peripheral == nil {
+        } else if centralManager.state == .poweredOn && bluetoothManager.mode.isConsumer && peripheral == nil {
             Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(getName(of: self.serviceUUID))'")
             centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         } else {
-            Logger.central.notice("Central won't attempt to \(#function) because CentralState is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.modeIsCentral ? "central" : "NOT central") or Peripheral property is \(self.peripheral == nil ? "nil" : "NOT nil")")
+            Logger.central.info("Central won't attempt to \(#function)")
+            Logger.central.debug("CentralState is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.mode.isConsumer ? "central" : "NOT central") or Peripheral property is \(self.peripheral == nil ? "nil" : "NOT nil")")
             if peripheral != nil {
                 () // TODO: ?
             }
@@ -71,22 +72,17 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     private func handleNotificationSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        let maxSupportedVersion = 1
         Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
-        guard notificationManager.version <= maxSupportedVersion else { // TODO: handle
-            Logger.central.fault("Central handleNotificationSourceUpdate only supports version \(maxSupportedVersion) or lower, but notificationManager is initialized with version \(self.notificationManager.version)")
-            return
-        }
         guard data.count >= minMessageLength else { // TODO: handle
             Logger.central.warning("Central will ignore notificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count) bytes as it's not at least \(minMessageLength) bytes long")
             return
         }
         let controlByte = ControlByte(value: UInt8(data[0]))
         if controlByte.destinationControlValue == 0 { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect and clear the Queue
-            Logger.central.notice("NotificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' indicates no more notifications")
+            Logger.central.info("NotificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' indicates no more notifications")
             notificationManager.save()
             disconnect(from: peripheral)
-        } else if controlByte.value <= notificationManager.maxSupportedControlByteValue {
+        } else if controlByte.value <= maxSupportedControlByteValue(for: notificationManager.self) {
             let hashedID = data.subdata(in: 1..<33)
             Logger.central.trace("Central checks if there's already a notification #\(printID(hashedID)) in storage")
             if storedNotificationHashedIDs.contains(hashedID) {
@@ -103,9 +99,9 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             let messageData = data.subdata(in: 105..<data.count)
             let message: String = String(data: messageData, encoding: .utf8) ?? ""
             let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
-            notificationManager.insert(notification)
+            notificationManager.insert(notification, andSave: false)
             storedNotificationHashedIDs.append(notification.hashedID)
-            Logger.peripheral.notice("Central successfully received notification #\(printID(notification.hashedID)) with message: '\(notification.message)'")
+            Logger.peripheral.info("Central successfully received notification #\(printID(notification.hashedID)) with message: '\(notification.message)'")
             if hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed {
                 notificationManager.updateView(with: notification)
             }
@@ -117,7 +113,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            Logger.central.notice("\(#function) to 'poweredOn'")
+            Logger.central.debug("\(#function) to 'poweredOn'")
             startScan()
         // TODO: handle other cases incl. authorization cases
         case .unknown:
@@ -232,7 +228,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
 //        if (error != nil) { // TODO: handle
 //            Logger.central.fault("Central did not WriteValueFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
 //        } else {
-//            Logger.central.notice("Central didWriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
+//            Logger.central.info("Central didWriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
 //        }
 //    }
     
@@ -240,7 +236,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         if (error != nil) { // TODO: handle
             Logger.central.error("Central did not UpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
         } else {
-            Logger.central.notice("Central didUpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))' to \(characteristic.isNotifying)")
+            Logger.central.debug("Central didUpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))' to \(characteristic.isNotifying)")
         }
     }
     
@@ -252,7 +248,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 startScan()
             }
         } else {
-            Logger.central.notice("Central didDisconnectPeripheral '\(printID(peripheral.identifier.uuidString))'")
+            Logger.central.info("Central didDisconnectPeripheral '\(printID(peripheral.identifier.uuidString))'")
             if isReconnecting {
                 Logger.central.debug("Central isReconnecting to peripheral '\(printID(peripheral.identifier.uuidString))'")
             } else {

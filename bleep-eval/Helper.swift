@@ -17,15 +17,6 @@ enum BleepError: Error {
     case invalidControlByteValue
 }
 
-struct BluetoothConstants {
-    static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
-    static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
-    
-    static let peripheralName = "bleeper"
-    static let centralIdentifierKey = "com.simon.bleep-eval.central"
-    static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
-}
-
 func generateText(with length: Int = maxMessageLength) -> String {
     let end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210"
     var result = ""
@@ -49,6 +40,15 @@ func getName(of cbuuid: CBUUID) -> String {
         return "Notification Source Characteristic"
     default:
         return "'\(cbuuid.uuidString)'"
+    }
+}
+
+func maxSupportedControlByteValue(for notificationManager: NotificationManager) -> Int {
+    switch notificationManager {
+    case is SimpleNotificationManager:
+        return 63
+    default:
+        return -1
     }
 }
 

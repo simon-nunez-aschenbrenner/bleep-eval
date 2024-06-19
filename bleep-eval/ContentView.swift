@@ -36,7 +36,7 @@ struct Font {
 
 struct ContentView: View {
     
-    @Environment(NotificationManager.self) var notificationManager
+    @Environment(\.notificationManager) var notificationManager
     @State var draft: String = "bleep"
     @State var destinationAddressString: String = Address.Broadcast.base58Encoded
     
@@ -143,10 +143,11 @@ struct ContentView: View {
             VStack(alignment: .leading) {
                 Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .padding()
-                List(notificationManager.notificationView) { notification in
+                    .padding([.top, .leading, .trailing])
+                List(notificationManager.view) { notification in
                     NotificationView(notification: notification)
                 }
+                Spacer()
             }
             Spacer()
         }
@@ -209,5 +210,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(NotificationManager(version: version))
+        .environment(SimpleNotificationManager(connectionManagerType: BluetoothManager.self))
 }

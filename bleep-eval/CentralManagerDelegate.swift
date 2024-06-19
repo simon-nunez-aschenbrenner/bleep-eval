@@ -20,7 +20,6 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     let characteristicUUID = BluetoothConstants.notificationSourceUUID
     
     var peripheral: CBPeripheral? // TODO: multiple peripherals
-    var storedNotificationHashedIDs: [Data] = []
     
     // MARK: initializing methods
             
@@ -35,18 +34,15 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     // MARK: public methods
         
     func startScan() {
-        Logger.peripheral.trace("Central may attempt to \(#function)")
+        Logger.central.trace("Central may attempt to \(#function)")
+        Logger.central.debug("CentralManager is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn") and \(self.centralManager.isScanning ? "SCANNING" : "not scanning"), DeviceMode is \(self.bluetoothManager.mode.isConsumer ? "consumer" : "NOT consumer"), CentralManagerDelegate peripheral property is \(self.peripheral == nil ? "nil" : "NOT nil")")
         if centralManager.isScanning {
-            Logger.peripheral.debug("Central is already scanning")
+            Logger.central.debug("Central is already scanning")
         } else if centralManager.state == .poweredOn && bluetoothManager.mode.isConsumer && peripheral == nil {
             Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(getName(of: self.serviceUUID))'")
             centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         } else {
             Logger.central.info("Central won't attempt to \(#function)")
-            Logger.central.debug("CentralState is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn"), BluetoothMode is \(self.bluetoothManager.mode.isConsumer ? "central" : "NOT central") or Peripheral property is \(self.peripheral == nil ? "nil" : "NOT nil")")
-            if peripheral != nil {
-                () // TODO: ?
-            }
         }
     }
     
@@ -63,53 +59,10 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             Logger.central.trace("Central has no peripherals to disconnect from")
         }
     }
-    
-    // MARK: private methods
-    
-    private func disconnect(from peripheral: CBPeripheral) {
+        
+    func disconnect(from peripheral: CBPeripheral) {
         Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))'")
         centralManager.cancelPeripheralConnection(peripheral)
-    }
-    
-    private func handleNotificationSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
-        guard data.count >= minNotificationLength else { // TODO: handle
-            Logger.central.warning("Central will ignore notificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count) bytes as it's not at least \(minNotificationLength) bytes long")
-            return
-        }
-        let controlByte = ControlByte(value: UInt8(data[0]))
-        guard controlByte.protocolValue == notificationManager.protocolValue else { // TODO: handle
-            Logger.central.error("Central can't \(#function) because the protocolValue doesn't match")
-            return
-        }
-        if controlByte.destinationControlValue == 0 { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect and clear the Queue
-            Logger.central.info("NotificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' indicates no more notifications")
-            notificationManager.save()
-            disconnect(from: peripheral)
-        } else {
-            let hashedID = data.subdata(in: 1..<33)
-            Logger.central.trace("Central checks if there's already a notification #\(printID(hashedID)) in storage")
-            if storedNotificationHashedIDs.contains(hashedID) {
-                Logger.central.info("Central will ignore notificationSourceUpdate #\(printID(hashedID)) from peripheral '\(printID(peripheral.identifier.uuidString))' as this notification is already stored")
-                return
-            }
-            let hashedDestinationAddress = data.subdata(in: 33..<65)
-            if controlByte.destinationControlValue == 2 && !(hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed) {
-                Logger.central.info("Central will ignore notificationSourceUpdate #\(printID(hashedID)), as its hashedDestinationAddress '\(printID(hashedDestinationAddress))' doesn't match this notificationManager's hashed address '\(printID(self.notificationManager.address.hashed))' or the hashed broadcast address '\(printID(Address.Broadcast.hashed))'")
-                return
-            }
-            let hashedSourceAddress = data.subdata(in: 65..<97)
-            let sentTimestampData = data.subdata(in: 97..<105)
-            let messageData = data.subdata(in: 105..<data.count)
-            let message: String = String(data: messageData, encoding: .utf8) ?? ""
-            let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
-            notificationManager.insert(notification, andSave: false)
-            storedNotificationHashedIDs.append(notification.hashedID)
-            Logger.peripheral.info("Central successfully received notification #\(printID(notification.hashedID)) with message: '\(notification.message)'")
-            if hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == notificationManager.address.hashed {
-                notificationManager.updateView(with: notification)
-            }
-        }
     }
     
     // MARK: delegate methods
@@ -146,7 +99,6 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         self.peripheral = peripheral
         peripheral.delegate = self
         stopScan()
-        storedNotificationHashedIDs = notificationManager.fetchAllHashedIDs() ?? []
         centralManager.connect(peripheral, options: nil)
     }
     
@@ -221,20 +173,12 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
             Logger.central.debug("Central did receive UpdateValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
             if characteristic.uuid.uuidString == self.characteristicUUID.uuidString {
-                handleNotificationSourceUpdate(peripheral: peripheral, data: data)
+                notificationManager.receiveNotification(data: data)
             } else {
                 Logger.central.warning("Central did receive UpdateValueFor unknown characteristic \(getName(of: characteristic.uuid))")
             }
         }
     }
-    
-//    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-//        if (error != nil) { // TODO: handle
-//            Logger.central.fault("Central did not WriteValueFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-//        } else {
-//            Logger.central.info("Central didWriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
-//        }
-//    }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if (error != nil) { // TODO: handle

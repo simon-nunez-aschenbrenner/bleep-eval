@@ -120,9 +120,9 @@ struct ContentView: View {
                         .cornerRadius(.infinity)
                 }
                 Button(action: {
-                    notificationManager.isSubscribing ? notificationManager.idle() : notificationManager.subscribe()
+                    notificationManager.isIdling ? notificationManager.subscribe(): notificationManager.idle()
                 }) {
-                    Text(notificationManager.isSubscribing ? "Idle" : "Subscribe")
+                    Text(notificationManager.isIdling ? "Subscribe" : "Idle")
                         .frame(maxWidth: .infinity)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                         .padding()
@@ -205,5 +205,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(SprayAndWait(connectionManagerType: BluetoothManager.self))
+        .environment(BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 3))
 }

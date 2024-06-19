@@ -33,4 +33,5 @@ protocol ConnectionManager {
     init(notificationManager: NotificationManager)
     
     func setMode(to mode: DeviceMode)
+    func send(notification data: Data) -> Bool
 }

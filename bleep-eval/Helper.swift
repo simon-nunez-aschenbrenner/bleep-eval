@@ -8,13 +8,15 @@
 import CoreBluetooth
 import Foundation
 
-let minMessageLength: Int = 105
-let maxMessageLength: Int = 524 - minMessageLength
+let addressBook: [Address] = [Address.Broadcast, Address("XVQ6uh5nTLN", name: "Simon")!, Address("e9Mfz9F2Sgy", name: "A")!]
+
+let minNotificationLength: Int = 105
+let maxMessageLength: Int = 524 - minNotificationLength
 let suffixLength: Int = 5
-let version: Int = 1
 
 enum BleepError: Error {
     case invalidControlByteValue
+    case invalidAddress
 }
 
 func generateText(with length: Int = maxMessageLength) -> String {
@@ -40,15 +42,6 @@ func getName(of cbuuid: CBUUID) -> String {
         return "Notification Source Characteristic"
     default:
         return "'\(cbuuid.uuidString)'"
-    }
-}
-
-func maxSupportedControlByteValue(for notificationManager: NotificationManager) -> Int {
-    switch notificationManager {
-    case is SimpleNotificationManager:
-        return 63
-    default:
-        return -1
     }
 }
 

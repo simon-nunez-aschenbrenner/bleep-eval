@@ -19,11 +19,11 @@ extension Logger {
 }
 
 struct NotificationManagerKey: EnvironmentKey {
-    static let defaultValue: SimpleNotificationManager = SimpleNotificationManager(connectionManagerType: BluetoothManager.self)
+    static let defaultValue: NotificationManager = SprayAndWait(connectionManagerType: BluetoothManager.self)
 }
 
 extension EnvironmentValues {
-    var notificationManager: SimpleNotificationManager {
+    var notificationManager: NotificationManager {
         get { self[NotificationManagerKey.self] }
         set { self[NotificationManagerKey.self] = newValue }
     }
@@ -32,7 +32,8 @@ extension EnvironmentValues {
 @main
 struct bleepEvalApp: App {
 
-    @State private var notificationManager = SimpleNotificationManager(connectionManagerType: BluetoothManager.self)
+    @State private var notificationManager = SprayAndWait(connectionManagerType: BluetoothManager.self)
+
 
     var body: some Scene {
         WindowGroup {

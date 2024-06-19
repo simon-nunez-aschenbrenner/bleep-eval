@@ -40,7 +40,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func startAdvertising() {
         Logger.peripheral.trace("Peripheral may attempt to \(#function)")
-        let notificationCount = notificationManager.fetchCount(with: [1,2])
+        let notificationCount = notificationManager.fetchAllSendableCount()
         if peripheralManager.isAdvertising {
             Logger.peripheral.debug("Peripheral is already advertising")
         } else if peripheralManager.state == .poweredOn && bluetoothManager.mode.isProvider && central == nil && notificationCount > 0 {
@@ -66,7 +66,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.trace("Peripheral attempts to \(#function)")
         if self.sendQueue.isEmpty {
             Logger.peripheral.trace("Peripheral attempts to populate the sendQueue")
-            let notifications = notificationManager.fetchAll(with: [1,2])
+            let notifications = notificationManager.fetchAllSendable()
             if notifications == nil || notifications!.isEmpty {
                 Logger.peripheral.debug("Peripheral has no notifications to add to the sendQueue")
             } else {
@@ -87,18 +87,18 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
             data.append(notification.hashedDestinationAddress)
             data.append(notification.hashedSourceAddress)
             data.append(notification.sentTimestampData)
-            assert(data.count == minMessageLength)
+            assert(data.count == minNotificationLength)
             if let messageData = notification.message.data(using: .utf8) {
                 data.append(messageData)
             }
             Logger.peripheral.trace("Peripheral attempts to updateValue of '\(getName(of: self.notificationSource.uuid))'")
             if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
-                Logger.peripheral.info("Peripheral updated value of '\(getName(of: self.notificationSource.uuid))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
+                Logger.peripheral.info("Peripheral updated value of '\(getName(of: self.notificationSource.uuid))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
                 try! notification.setDestinationControl(to: 0)
                 endedSuccessfully = true
                 continue
             } else {
-                Logger.peripheral.warning("Peripheral did not update value of '\(getName(of: self.notificationSource.uuid)))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
+                Logger.peripheral.warning("Peripheral did not update value of '\(getName(of: self.notificationSource.uuid)))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
                 endedSuccessfully = false
                 break
                 // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again.
@@ -113,7 +113,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     private func sendNoNotificationSignal() {
         Logger.peripheral.trace("Peripheral attempts to \(#function)")
-        let data = Data(count: minMessageLength)
+        let data = Data(count: minNotificationLength)
         Logger.peripheral.debug("Peripheral attempts to updateValue of '\(getName(of: self.notificationSource.uuid))'")
         if peripheralManager.updateValue(data, for: self.notificationSource, onSubscribedCentrals: nil) {
             Logger.peripheral.info("Peripheral updated value for characteristic '\(getName(of: self.notificationSource.uuid))' with \(data.count) zeros")

@@ -45,7 +45,7 @@ class BluetoothManager: NSObject, ConnectionManager {
     private func initMode() {
         let isScanning = centralManagerDelegate.centralManager.isScanning
         let isAdvertising = peripheralManagerDelegate.peripheralManager.isAdvertising
-        Logger.bluetooth.trace("BluetoothManager will \(#function) based on centralManager.isScanning=\(isScanning) and peripheralManager.isAdvertising=\(isAdvertising)")
+        Logger.bluetooth.trace("BluetoothManager will \(#function) based on isScanning=\(isScanning) and isAdvertising=\(isAdvertising)")
         if isAdvertising && isScanning { // TODO: handle
             Logger.bluetooth.fault("Could not \(#function): isScanning=\(isScanning), isAdvertising=\(isAdvertising)")
             self.mode = .undefined

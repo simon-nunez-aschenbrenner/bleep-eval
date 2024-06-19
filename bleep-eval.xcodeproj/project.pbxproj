@@ -22,9 +22,8 @@
 		F4369EDA2BE549E000852AEC /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4369ED92BE549E000852AEC /* Preview Assets.xcassets */; };
 		F45058DC2C1B8E5100DCE851 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45058DB2C1B8E5100DCE851 /* Helper.swift */; };
 		F481F40C2C22DDB9006E0F4E /* ConnectionManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F481F40B2C22DDB9006E0F4E /* ConnectionManagerProtocol.swift */; };
-		F481F40E2C22E564006E0F4E /* NotificationManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F481F40D2C22E564006E0F4E /* NotificationManagerProtocol.swift */; };
 		F484D7C12BEE4D6E0070E613 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */; };
-		F4D839AE2C175D4B00D1CF21 /* SimpleNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D839AD2C175D4B00D1CF21 /* SimpleNotificationManager.swift */; };
+		F4D839AE2C175D4B00D1CF21 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */; };
 		F4D839B02C19ED4F00D1CF21 /* AddressModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D839AF2C19ED4F00D1CF21 /* AddressModel.swift */; };
 		F4E3E8D52C2204D40053E693 /* NotificationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4E3E8D42C2204D40053E693 /* NotificationModel.swift */; };
 		F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */; };
@@ -49,9 +48,8 @@
 		F45058DB2C1B8E5100DCE851 /* Helper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helper.swift; sourceTree = "<group>"; };
 		F4711FBC2BE56443007FEACD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F481F40B2C22DDB9006E0F4E /* ConnectionManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManagerProtocol.swift; sourceTree = "<group>"; };
-		F481F40D2C22E564006E0F4E /* NotificationManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerProtocol.swift; sourceTree = "<group>"; };
 		F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
-		F4D839AD2C175D4B00D1CF21 /* SimpleNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleNotificationManager.swift; sourceTree = "<group>"; };
+		F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		F4D839AF2C19ED4F00D1CF21 /* AddressModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressModel.swift; sourceTree = "<group>"; };
 		F4E3E8D42C2204D40053E693 /* NotificationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModel.swift; sourceTree = "<group>"; };
 		F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeripheralManagerDelegate.swift; sourceTree = "<group>"; };
@@ -107,8 +105,7 @@
 				F4369ED42BE549DF00852AEC /* ContentView.swift */,
 				F4D839AF2C19ED4F00D1CF21 /* AddressModel.swift */,
 				F4E3E8D42C2204D40053E693 /* NotificationModel.swift */,
-				F481F40D2C22E564006E0F4E /* NotificationManagerProtocol.swift */,
-				F4D839AD2C175D4B00D1CF21 /* SimpleNotificationManager.swift */,
+				F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */,
 				F481F40B2C22DDB9006E0F4E /* ConnectionManagerProtocol.swift */,
 				F484D7C02BEE4D6E0070E613 /* BluetoothManager.swift */,
 				F4F551792BE68726008A5860 /* PeripheralManagerDelegate.swift */,
@@ -212,9 +209,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F481F40E2C22E564006E0F4E /* NotificationManagerProtocol.swift in Sources */,
 				F4E3E8D52C2204D40053E693 /* NotificationModel.swift in Sources */,
-				F4D839AE2C175D4B00D1CF21 /* SimpleNotificationManager.swift in Sources */,
+				F4D839AE2C175D4B00D1CF21 /* NotificationManager.swift in Sources */,
 				F4F5517A2BE68726008A5860 /* PeripheralManagerDelegate.swift in Sources */,
 				F4D839B02C19ED4F00D1CF21 /* AddressModel.swift in Sources */,
 				F4369ED52BE549DF00852AEC /* ContentView.swift in Sources */,

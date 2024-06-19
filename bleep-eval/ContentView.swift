@@ -36,44 +36,48 @@ struct Font {
 
 struct ContentView: View {
     
-    @Environment(\.notificationManager) var notificationManager
+    @Environment(\.notificationManager) var notificationManager: NotificationManager
     @State var draft: String = "bleep"
-    @State var destinationAddressString: String = Address.Broadcast.base58Encoded
+    @State var destinationAddress: Address = Address.Broadcast
+    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
     var body: some View {
         VStack(alignment: .leading) {
             LogoView()
                 .padding(.vertical)
-            Spacer()
             
-            Text("Source address: \(notificationManager.address.base58Encoded) (\(printID(notificationManager.address.hashed)))")
+            // MARK: Source
+            
+            Text("I am \(addressBook.first(where: { $0.rawValue == notificationManager.address.rawValue })?.description ?? "unknown")")
                 .frame(maxWidth: .infinity)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(Color("bleepPrimary"))
-                .padding(.top)
+                .padding([.leading, .bottom])
+
+            // MARK: Destinations
             
-            HStack(alignment: .bottom) {
-                TextField("Enter destination address", text: $destinationAddressString)
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .padding()
-                    .cornerRadius(.infinity)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: .infinity)
-                            .stroke(Color("bleepPrimary"), lineWidth: 1)
-                    )
-                Button(action: {
-                    draft = generateText(with: maxMessageLength)
-                }) {
-                    Text("\(draft.count)/\(maxMessageLength)")
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .foregroundColor(Color("bleepPrimary"))
+            LazyVGrid(columns: columns) {
+                ForEach(addressBook) { address in
+                    Button(action: {
+                        destinationAddress = address
+                    }) {
+                        Text(address.name ?? address.base58Encoded)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                            .padding()
+                            .background(address.rawValue != destinationAddress.rawValue || address.rawValue == notificationManager.address.rawValue ? Color("bleepSecondary") : Color("bleepPrimary"))
+                            .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                            .cornerRadius(.infinity)
+                    }
+                    .disabled(address.rawValue == notificationManager.address.rawValue)
                 }
             }
-            .padding([.leading, .trailing])
+            .padding(.horizontal)
             
-            HStack {
+            // MARK: Message
+            
+            HStack(alignment: .bottom) {
                 TextField("Enter message", text: $draft)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .textInputAutocapitalization(.never)
@@ -84,37 +88,26 @@ struct ContentView: View {
                         RoundedRectangle(cornerRadius: .infinity)
                             .stroke(Color("bleepPrimary"), lineWidth: 1)
                     )
+                
                 Button(action: {
-                    if !draft.isEmpty {
-                        let destinationAddress = Address(Address.decode(destinationAddressString) ?? 0)
-                        let controlByte = try! ControlByte(protocolValue: 0, destinationControlValue: 1, sequenceNumberValue: 0)
-                        let notification = Notification(controlByte: controlByte, sourceAddress: notificationManager.address, destinationAddress: destinationAddress, message: draft)
-                        notificationManager.insert(notification)
-                    } else {
-                        notificationManager.idle()
-                    }
-                    draft = ""
+                    draft = generateText(with: maxMessageLength)
                 }) {
-                    Text(!draft.isEmpty ? "Save" : "Stop")
-                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(notificationManager.isIdling && draft.isEmpty ? Color("bleepSecondary") : Color("bleepPrimary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(.infinity)
+                    Text("\(draft.count)/\(maxMessageLength)")
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .foregroundColor(Color("bleepPrimary"))
                 }
-                .disabled(notificationManager.isIdling && draft.isEmpty)
             }
-            .padding([.leading, .trailing])
+            .padding([.leading, .trailing, .bottom])
             
-            Text("Current state: \(notificationManager.state)")
-                .frame(maxWidth: .infinity)
-                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
-                .padding(.top)
+            // MARK: State
             
             HStack {
                 Button(action: {
+                    if !draft.isEmpty {
+                        let notification = notificationManager.create(destinationAddress: destinationAddress, message: draft)
+                        notificationManager.insert(notification)
+                        draft.removeAll()
+                    }
                     notificationManager.save()
                     notificationManager.publish()
                 }) {
@@ -122,23 +115,25 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                         .padding()
-                        .background(Color("bleepPrimary"))
+                        .background(notificationManager.isPublishing ? Color("bleepPrimary") : Color("bleepSecondary"))
                         .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                         .cornerRadius(.infinity)
                 }
                 Button(action: {
-                    notificationManager.subscribe()
+                    notificationManager.isSubscribing ? notificationManager.idle() : notificationManager.subscribe()
                 }) {
-                    Text("Subscribe")
+                    Text(notificationManager.isSubscribing ? "Idle" : "Subscribe")
                         .frame(maxWidth: .infinity)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                         .padding()
-                        .background(Color("bleepPrimary"))
+                        .background(notificationManager.isSubscribing ? Color("bleepPrimary") : Color("bleepSecondary"))
                         .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                         .cornerRadius(.infinity)
                 }
             }
             .padding(.horizontal)
+            
+            // MARK: Notifications
             
             VStack(alignment: .leading) {
                 Text("Notifications:")
@@ -210,5 +205,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(SimpleNotificationManager(connectionManagerType: BluetoothManager.self))
+        .environment(SprayAndWait(connectionManagerType: BluetoothManager.self))
 }

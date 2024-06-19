@@ -72,17 +72,21 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     private func handleNotificationSourceUpdate(peripheral: CBPeripheral, data: Data) {
-        Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
-        guard data.count >= minMessageLength else { // TODO: handle
-            Logger.central.warning("Central will ignore notificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count) bytes as it's not at least \(minMessageLength) bytes long")
+        Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
+        guard data.count >= minNotificationLength else { // TODO: handle
+            Logger.central.warning("Central will ignore notificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count) bytes as it's not at least \(minNotificationLength) bytes long")
             return
         }
         let controlByte = ControlByte(value: UInt8(data[0]))
+        guard controlByte.protocolValue == notificationManager.protocolValue else { // TODO: handle
+            Logger.central.error("Central can't \(#function) because the protocolValue doesn't match")
+            return
+        }
         if controlByte.destinationControlValue == 0 { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect and clear the Queue
             Logger.central.info("NotificationSourceUpdate from peripheral '\(printID(peripheral.identifier.uuidString))' indicates no more notifications")
             notificationManager.save()
             disconnect(from: peripheral)
-        } else if controlByte.value <= maxSupportedControlByteValue(for: notificationManager.self) {
+        } else {
             let hashedID = data.subdata(in: 1..<33)
             Logger.central.trace("Central checks if there's already a notification #\(printID(hashedID)) in storage")
             if storedNotificationHashedIDs.contains(hashedID) {
@@ -215,7 +219,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 Logger.central.error("Central can't handleNotificationSourceUpdate, because value property of characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString)) is nil")
                 return
             }
-            Logger.central.debug("Central did receive UpdateValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minMessageLength)+\(minMessageLength)=\(data.count) bytes")
+            Logger.central.debug("Central did receive UpdateValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
             if characteristic.uuid.uuidString == self.characteristicUUID.uuidString {
                 handleNotificationSourceUpdate(peripheral: peripheral, data: data)
             } else {

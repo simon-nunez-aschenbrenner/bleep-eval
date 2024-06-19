@@ -8,7 +8,7 @@
 import CoreBluetooth
 import Foundation
 
-let addressBook: [Address] = [Address.Broadcast, Address("XVQ6uh5nTLN", name: "Simon")!, Address("e9Mfz9F2Sgy", name: "A")!]
+let addressBook: [Address] = [Address.Broadcast, Address("XVQ6uh5nTLN", name: "Simon")!, Address("3NHph2xbJS4", name: "A")!]
 
 let minNotificationLength: Int = 105
 let maxMessageLength: Int = 524 - minNotificationLength

@@ -74,4 +74,8 @@ class BluetoothManager: NSObject, ConnectionManager {
             peripheralManagerDelegate.stopAdvertising()
         }
     }
+    
+    func send(notification data: Data) -> Bool {
+        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
+    }
 }

@@ -12,6 +12,7 @@ let addressBook: [Address] = [Address.Broadcast, Address("XVQ6uh5nTLN", name: "S
 
 let minNotificationLength: Int = 105
 let maxMessageLength: Int = 524 - minNotificationLength
+let acknowledgementLength: Int = 32
 let suffixLength: Int = 5
 
 enum BleepError: Error {
@@ -40,6 +41,8 @@ func getName(of cbuuid: CBUUID) -> String {
         return "Bleep Notification Service"
     case BluetoothConstants.notificationSourceUUID.uuidString:
         return "Notification Source Characteristic"
+    case BluetoothConstants.notificationAcknowledgementUUID.uuidString:
+        return "Notification Acknowledgement Characteristic"
     default:
         return "'\(cbuuid.uuidString)'"
     }

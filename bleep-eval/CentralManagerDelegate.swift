@@ -17,7 +17,9 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     var centralManager: CBCentralManager!
     
     let serviceUUID = BluetoothConstants.serviceUUID
-    let characteristicUUID = BluetoothConstants.notificationSourceUUID
+    let notificationSourceUUID = BluetoothConstants.notificationSourceUUID
+    let notificationAcknowledgementUUID = BluetoothConstants.notificationAcknowledgementUUID
+    var notificationAcknowledgement: CBCharacteristic?
     
     var peripheral: CBPeripheral? // TODO: multiple peripherals
     
@@ -60,7 +62,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
         
-    func disconnect(from peripheral: CBPeripheral) {
+    private func disconnect(from peripheral: CBPeripheral) {
         Logger.central.debug("Central attempts to \(#function) from peripheral '\(printID(peripheral.identifier.uuidString))'")
         centralManager.cancelPeripheralConnection(peripheral)
     }
@@ -109,7 +111,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) { // TODO: handle
         Logger.central.error("Central didFailToConnect to peripheral '\(printID(peripheral.identifier.uuidString))': '\(error?.localizedDescription ?? "")'")
-        startScan()
+        notificationManager.decide()
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: (any Error)?) {
@@ -131,8 +133,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
             if !discoveredService { // TODO: handle
                 Logger.central.error("Central can't discoverCharacteristics, because it did not discover service '\(getName(of: self.serviceUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
-                disconnect(from: peripheral)
-                startScan()
+                notificationManager.decide()
             }
         }
     }
@@ -146,19 +147,24 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 return
             }
             Logger.central.debug("Central didDiscoverCharacteristicsFor service '\(getName(of: service.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))' and attempts to setNotifyValue")
-            var discoveredCharacteristic = false
+            var discoveredNotificationSourceCharacteristic = false
             for characteristic in discoveredCharacteristics {
                 Logger.central.trace("Central discovered characteristic '\(getName(of: characteristic.uuid))'")
-                if characteristic.uuid.uuidString == self.characteristicUUID.uuidString {
-                    discoveredCharacteristic = true
+                if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
+                    discoveredNotificationSourceCharacteristic = true
                     Logger.central.trace("Central attempts to setNotifyValue of '\(getName(of: characteristic.uuid))' to true")
                     peripheral.setNotifyValue(true, for: characteristic)
+                } else if characteristic.uuid.uuidString == self.notificationAcknowledgementUUID.uuidString {
+                    self.notificationAcknowledgement = characteristic
+                    Logger.central.trace("Central added '\(getName(of: characteristic.uuid))' characteristic")
                 }
             }
-            if !discoveredCharacteristic { // TODO: handle
-                Logger.central.error("Central can't attempt to setNotifyValue, because it did not discover characteristic '\(getName(of: self.characteristicUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
-                disconnect(from: peripheral)
-                startScan()
+            if self.notificationAcknowledgement == nil { // TODO: handle
+                Logger.central.warning("Central did not discover characteristic '\(getName(of: self.notificationAcknowledgementUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
+            }
+            if !discoveredNotificationSourceCharacteristic { // TODO: handle
+                Logger.central.error("Central can't attempt to setNotifyValue, because it did not discover characteristic '\(getName(of: self.notificationSourceUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
+                notificationManager.decide()
             }
         }
     }
@@ -172,11 +178,20 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 return
             }
             Logger.central.debug("Central did receive UpdateValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
-            if characteristic.uuid.uuidString == self.characteristicUUID.uuidString {
+            if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
                 notificationManager.receiveNotification(data: data)
             } else {
                 Logger.central.warning("Central did receive UpdateValueFor unknown characteristic \(getName(of: characteristic.uuid))")
             }
+        }
+    }
+    
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if (error != nil) { // TODO: handle
+            Logger.central.error("Central did not WriteValueFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
+        } else {
+            Logger.central.debug("Central didWriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
+            
         }
     }
     
@@ -188,12 +203,13 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
     
+    // TODO: rewrite nicer
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, timestamp: CFAbsoluteTime, isReconnecting: Bool, error: (any Error)?) {
         if (error != nil) { // TODO: handle
             Logger.central.error("Central did not DisconnectPeripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
             if error!.localizedDescription == "The specified device has disconnected from us." { // TODO: needs better solution (connectionEvent?)
                 self.peripheral = nil
-                startScan()
+                notificationManager.decide()
             }
         } else {
             Logger.central.info("Central didDisconnectPeripheral '\(printID(peripheral.identifier.uuidString))'")
@@ -201,7 +217,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
                 Logger.central.debug("Central isReconnecting to peripheral '\(printID(peripheral.identifier.uuidString))'")
             } else {
                 self.peripheral = nil
-                startScan()
+                notificationManager.decide()
             }
         }
     }

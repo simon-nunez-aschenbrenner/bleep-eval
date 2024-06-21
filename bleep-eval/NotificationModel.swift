@@ -12,7 +12,7 @@ import OSLog
 
 // MARK: ControlByte
 
-struct ControlByte {
+struct ControlByte: CustomStringConvertible {
     
     let protocolValue: UInt8
     let destinationControlValue: UInt8
@@ -24,6 +24,10 @@ struct ControlByte {
         result += destinationControlValue << 4
         result += sequenceNumberValue
         return result
+    }
+    
+    var description: String {
+        return "[P\(protocolValue) D\(destinationControlValue) S\(sequenceNumberValue)]"
     }
     
     init(protocolValue: UInt8, destinationControlValue: UInt8, sequenceNumberValue: UInt8) throws {
@@ -68,7 +72,7 @@ class Notification: CustomStringConvertible {
     let message: String!
     
     var description: String {
-        return "#\(printID(hashedID)) [P=\(protocolValue!) D=\(destinationControlValue!) S=\(sequenceNumberValue!)] from (\(printID(hashedSourceAddress))) at \(printTimestamp(sentTimestamp)) to (\(printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + printTimestamp(receivedTimestamp!)) and message length \(message.count)"
+        return "#\(printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(printID(hashedSourceAddress))) at \(printTimestamp(sentTimestamp)) to (\(printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + printTimestamp(receivedTimestamp!)) and message length \(message.count)"
     }
     
     // Used by sender
@@ -119,13 +123,4 @@ class Notification: CustomStringConvertible {
         self.sequenceNumberValue = value
     }
     
-    func incrementSequenceNumber() throws {
-        guard self.sequenceNumberValue < 15 else { throw BleepError.invalidControlByteValue }
-        self.sequenceNumberValue += 1
-    }
-    
-    func decrementSequenceNumber() throws {
-        guard self.sequenceNumberValue > 0 else { throw BleepError.invalidControlByteValue }
-        self.sequenceNumberValue -= 1
-    }
 }

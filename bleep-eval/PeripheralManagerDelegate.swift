@@ -19,6 +19,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     let name = BluetoothConstants.peripheralName
     var service: CBMutableService!
     var notificationSource: CBMutableCharacteristic!
+    var notificationAcknowledgement: CBMutableCharacteristic!
     
     var central: CBCentral? // TODO: multiple centrals
         
@@ -31,6 +32,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         self.peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionRestoreIdentifierKey: BluetoothConstants.peripheralIdentifierKey, CBPeripheralManagerOptionShowPowerAlertKey: true])
         self.service = CBMutableService(type: BluetoothConstants.serviceUUID, primary: true)
         self.notificationSource = CBMutableCharacteristic(type: BluetoothConstants.notificationSourceUUID, properties: [.indicate], value: nil, permissions: [])
+        self.notificationAcknowledgement = CBMutableCharacteristic(type: BluetoothConstants.notificationAcknowledgementUUID, properties: [.write], value: nil, permissions: [.writeable])
         self.service.characteristics = [notificationSource]
         Logger.peripheral.trace("PeripheralManagerDelegate initialized")
     }
@@ -106,6 +108,21 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         }
     }
     
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        Logger.peripheral.trace("Peripheral didReceiveWrite")
+        for request in requests {
+            if request.characteristic.uuid == self.notificationAcknowledgement.uuid {
+                Logger.peripheral.trace("Peripheral attempts to handle controlPoint command")
+                guard let data = request.value else {
+                    Logger.peripheral.fault("ControlPoint command from central '\(printID(request.central.identifier.uuidString))' is nil")
+                    peripheral.respond(to: request, withResult: .attributeNotFound)
+                    return
+                }
+                notificationManager.receiveAcknowledgement(data: data)
+            }
+        }
+    }
+    
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(getName(of: characteristic.uuid))'")
         self.central = central
@@ -117,7 +134,9 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(printID(central.identifier.uuidString))' didUnsubscribeFrom characteristic '\(getName(of: characteristic.uuid))', removing all notifications from the sendQueue")
         self.central = nil
-        startAdvertising()
+        if characteristic.uuid.uuidString == BluetoothConstants.notificationSourceUUID.uuidString {
+            notificationManager.decide()
+        }
     }
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {

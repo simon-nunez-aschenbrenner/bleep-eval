@@ -10,9 +10,40 @@ import CoreBluetooth
 import CryptoKit
 import OSLog
 
+protocol ConnectionManager {
+    
+    var notificationManager: NotificationManager! { get }
+    var mode: DeviceMode! { get }
+
+    init(notificationManager: NotificationManager)
+    
+    func setMode(to mode: DeviceMode)
+    func send(notification data: Data) -> Bool
+    func acknowledge(hashedID data: Data)
+}
+
+enum DeviceMode: Int, CustomStringConvertible {
+    case consumer = -1
+    case undefined = 0
+    case provider = 1
+    
+    var isConsumer: Bool { return !(self.rawValue > -1) }
+    var isUndefined: Bool { return self.rawValue == 0 }
+    var isProvider: Bool { return !(self.rawValue < 1) }
+    
+    var description: String {
+        switch self {
+        case .consumer: return "Consumer"
+        case .undefined: return "Undefined"
+        case .provider:  return "Provider"
+        }
+    }
+}
+
 struct BluetoothConstants {
     static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
     static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
+    static let notificationAcknowledgementUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
     
     static let peripheralName = "bleeper"
     static let centralIdentifierKey = "com.simon.bleep-eval.central"
@@ -63,6 +94,7 @@ class BluetoothManager: NSObject, ConnectionManager {
         switch mode {
         case .consumer:
             peripheralManagerDelegate.stopAdvertising()
+            centralManagerDelegate.disconnect()
             centralManagerDelegate.startScan()
         case .provider:
             centralManagerDelegate.stopScan()
@@ -77,5 +109,17 @@ class BluetoothManager: NSObject, ConnectionManager {
     
     func send(notification data: Data) -> Bool {
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
+    }
+    
+    func acknowledge(hashedID data: Data) {
+        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
+            Logger.central.error("Central can't \(#function) because the centralManagerDelegate peripheral property is nil")
+            return
+        }
+        guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: handle
+            Logger.central.error("Central can't \(#function) because the centralManagerDelegate notificationAcknowledgement property is nil")
+            return
+        }
+        peripheral.writeValue(data, for: notificationAcknowledgement, type: .withResponse)
     }
 }

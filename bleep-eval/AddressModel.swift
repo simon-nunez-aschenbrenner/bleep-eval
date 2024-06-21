@@ -11,9 +11,7 @@ import OSLog
 import SwiftData
 
 @Model
-class Address: CustomStringConvertible {
-    static let Broadcast = Address("1", name: "Broadcast")!
-    static let Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
+class Address: Equatable, CustomStringConvertible {
     
     let rawValue: UInt64!
     @Attribute(.unique) let isOwn: Bool!
@@ -33,13 +31,13 @@ class Address: CustomStringConvertible {
     }
     
     init() {
-        self.rawValue = UInt64.random(in: 1...UInt64.max) // 0 reserved for Broadcast
+        self.rawValue = UInt64.random(in: minAddressRawValue...UInt64.max)
         self.isOwn = true
         Logger.notification.trace("Random address initialized: \(self.description)")
     }
     
     init(name: String) {
-        self.rawValue = UInt64.random(in: 1...UInt64.max) // 0 reserved for Broadcast
+        self.rawValue = UInt64.random(in: minAddressRawValue...UInt64.max)
         self.isOwn = true
         self.name = name
         Logger.notification.trace("Random address initialized: \(self.description)")
@@ -65,7 +63,7 @@ class Address: CustomStringConvertible {
         var integer = UInt64(1)
         let byteArray = [UInt8](base58.utf8)
         for char in byteArray.reversed() {
-            guard let alphabetIndex = Address.Alphabet.firstIndex(of: char) else {
+            guard let alphabetIndex = base58Alphabet.firstIndex(of: char) else {
                 return nil
             }
             result += (integer * UInt64(alphabetIndex))
@@ -78,14 +76,18 @@ class Address: CustomStringConvertible {
         var integer = integer
         var result = ""
         if integer == 0 {
-            return String(Character(Unicode.Scalar(Address.Alphabet[0])))
+            return String(Character(Unicode.Scalar(base58Alphabet[0])))
         }
         while integer > 0 {
             let remainder = Int(integer % 58)
             integer /= 58
-            result.append(Character(Unicode.Scalar(Address.Alphabet[remainder])))
+            result.append(Character(Unicode.Scalar(base58Alphabet[remainder])))
         }
         return String(result.reversed())
+    }
+    
+    static func == (lhs: Address, rhs: Address) -> Bool {
+        return lhs.rawValue == rhs.rawValue
     }
 
 }

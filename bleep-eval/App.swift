@@ -18,16 +18,16 @@ extension Logger {
     static let central = Logger(subsystem: subsystem, category: "central")
 }
 
-struct NotificationManagerKey: EnvironmentKey {
-    static let defaultValue: NotificationManager = BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)!
-}
-
-extension EnvironmentValues {
-    var notificationManager: NotificationManager {
-        get { self[NotificationManagerKey.self] }
-        set { self[NotificationManagerKey.self] = newValue }
-    }
-}
+//struct NotificationManagerKey: EnvironmentKey {
+//    static let defaultValue: NotificationManager = BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)!
+//}
+//
+//extension EnvironmentValues {
+//    var notificationManager: NotificationManager {
+//        get { self[NotificationManagerKey.self] }
+//        set { self[NotificationManagerKey.self] = newValue }
+//    }
+//}
 
 @main
 struct bleepEvalApp: App {
@@ -37,7 +37,7 @@ struct bleepEvalApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.notificationManager, notificationManager)
+                .environment(notificationManager)
         }
     }
 }

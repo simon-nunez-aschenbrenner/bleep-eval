@@ -37,10 +37,10 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         
     func startScan() {
         Logger.central.trace("Central may attempt to \(#function)")
-        Logger.central.debug("CentralManager is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn") and \(self.centralManager.isScanning ? "SCANNING" : "not scanning"), DeviceMode is \(self.bluetoothManager.mode.isConsumer ? "consumer" : "NOT consumer"), CentralManagerDelegate peripheral property is \(self.peripheral == nil ? "nil" : "NOT nil")")
+        Logger.central.debug("CentralManager is \(self.centralManager.state == .poweredOn ? "poweredOn" : "NOT poweredOn") and \(self.centralManager.isScanning ? "SCANNING" : "not scanning"), ConnectionManagerMode is \(self.bluetoothManager.mode.isConsumer ? "consumer" : "NOT consumer")")
         if centralManager.isScanning {
             Logger.central.debug("Central is already scanning")
-        } else if centralManager.state == .poweredOn && bluetoothManager.mode.isConsumer && peripheral == nil {
+        } else if centralManager.state == .poweredOn && bluetoothManager.mode.isConsumer {
             Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(getName(of: self.serviceUUID))'")
             centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         } else {
@@ -55,11 +55,11 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func disconnect() {
         Logger.central.trace("Central attempts to \(#function) from all peripherals")
-        if self.peripheral != nil {
-            disconnect(from: self.peripheral!)
-        } else {
+        guard peripheral != nil else {
             Logger.central.trace("Central has no peripherals to disconnect from")
+            return
         }
+        disconnect(from: peripheral!)
     }
         
     private func disconnect(from peripheral: CBPeripheral) {
@@ -133,9 +133,14 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
             if !discoveredService { // TODO: handle
                 Logger.central.error("Central can't discoverCharacteristics, because it did not discover service '\(getName(of: self.serviceUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
-                notificationManager.decide()
+                disconnect(from: peripheral)
             }
         }
+    }
+    
+    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) { // TODO: handle
+        Logger.central.warning("\(#function) invalidatedServices: \(invalidatedServices)")
+        peripheral.discoverServices([self.serviceUUID])
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
@@ -164,7 +169,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
             if !discoveredNotificationSourceCharacteristic { // TODO: handle
                 Logger.central.error("Central can't attempt to setNotifyValue, because it did not discover characteristic '\(getName(of: self.notificationSourceUUID))' on peripheral '\(printID(peripheral.identifier.uuidString))'")
-                notificationManager.decide()
+                disconnect(from: peripheral)
             }
         }
     }
@@ -179,7 +184,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
             Logger.central.debug("Central did receive UpdateValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))' with \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
             if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
-                notificationManager.receiveNotification(data: data)
+                notificationManager.receiveNotification(data: data, from: peripheral.identifier.uuidString)
             } else {
                 Logger.central.warning("Central did receive UpdateValueFor unknown characteristic \(getName(of: characteristic.uuid))")
             }
@@ -188,37 +193,63 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         if (error != nil) { // TODO: handle
-            Logger.central.error("Central did not WriteValueFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
+            Logger.central.error("Central did not receive WriteValueFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
         } else {
-            Logger.central.debug("Central didWriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
+            Logger.central.debug("Central did receive WriteValueFor characteristic \(getName(of: characteristic.uuid)) on peripheral '\(printID(peripheral.identifier.uuidString))'")
             
         }
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if (error != nil) { // TODO: handle
-            Logger.central.error("Central did not UpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
+            Logger.central.error("Central did not receive UpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))': '\(error!.localizedDescription)' on peripheral '\(printID(peripheral.identifier.uuidString))'")
         } else {
-            Logger.central.debug("Central didUpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' on peripheral '\(printID(peripheral.identifier.uuidString))' to \(characteristic.isNotifying)")
+            Logger.central.debug("Central did receive UpdateNotificationStateFor characteristic '\(getName(of: characteristic.uuid))' to \(characteristic.isNotifying) on peripheral '\(printID(peripheral.identifier.uuidString))'")
         }
     }
     
-    // TODO: rewrite nicer
-    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, timestamp: CFAbsoluteTime, isReconnecting: Bool, error: (any Error)?) {
-        if (error != nil) { // TODO: handle
-            Logger.central.error("Central did not DisconnectPeripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-            if error!.localizedDescription == "The specified device has disconnected from us." { // TODO: needs better solution (connectionEvent?)
-                self.peripheral = nil
-                notificationManager.decide()
-            }
-        } else {
-            Logger.central.info("Central didDisconnectPeripheral '\(printID(peripheral.identifier.uuidString))'")
-            if isReconnecting {
-                Logger.central.debug("Central isReconnecting to peripheral '\(printID(peripheral.identifier.uuidString))'")
-            } else {
-                self.peripheral = nil
-                notificationManager.decide()
-            }
+//    TODO: delete?
+//    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, timestamp: CFAbsoluteTime, isReconnecting: Bool, error: (any Error)?) {
+//        if (error != nil) { // TODO: handle
+//            Logger.central.error("Central did not DisconnectPeripheral '\(printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
+//            if error!.localizedDescription == "The specified device has disconnected from us." { // TODO: needs better solution (connectionEvent?)
+//                Logger.central.debug("PeripheralManager centrals array before: \(self.peripherals)")
+//                peripherals.removeAll(where: { element in element.identifier.uuidString == peripheral.identifier.uuidString })
+//                Logger.central.debug("PeripheralManager centrals array after: \(self.peripherals)")                notificationManager.decide()
+//            }
+//        } else {
+//            Logger.central.info("Central didDisconnectPeripheral '\(printID(peripheral.identifier.uuidString))'")
+//            if isReconnecting {
+//                Logger.central.debug("Central isReconnecting to peripheral '\(printID(peripheral.identifier.uuidString))'")
+//            } else {
+//                Logger.central.debug("PeripheralManager centrals array before: \(self.peripherals)")
+//                peripherals.removeAll(where: { element in element.identifier.uuidString == peripheral.identifier.uuidString })
+//                Logger.central.debug("PeripheralManager centrals array after: \(self.peripherals)")                notificationManager.decide()
+//            }
+//        }
+//    }
+    
+    func centralManager(_ central: CBCentralManager, connectionEventDidOccur event: CBConnectionEvent, for peripheral: CBPeripheral) {
+        Logger.central.debug("\(#function) peripheral '\(printID(peripheral.identifier.uuidString)): \(event.description)'")
+        switch event {
+        case .peerDisconnected:
+            self.peripheral = nil
+            notificationManager.decide()
+        case .peerConnected:
+            return
+        @unknown default:
+            return
+        }
+    }
+}
+
+extension CBConnectionEvent: CustomStringConvertible {
+    
+    public var description: String {
+        switch self {
+        case .peerConnected: return "connected"
+        case .peerDisconnected: return "disconnected"
+        @unknown default: return "connectionEvent unknown"
         }
     }
 }

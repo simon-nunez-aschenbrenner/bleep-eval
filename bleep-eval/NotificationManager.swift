@@ -9,23 +9,24 @@ import Foundation
 import SwiftData
 import OSLog
 
-// MARK: Protocol
+// MARK: NotificationManager protocol
 
 protocol NotificationManager: AnyObject {
     
     var address: Address! { get }
-    var view: [Notification]! { get }
+    var receivedQueue: [Notification]! { get }
+    var sendQueue: [Notification: Bool]! { get }
     
-//    var isPublishing: Bool! { get }
-//    var isSubscribing: Bool! { get }
-//    var isIdling: Bool! { get }
-        
+    var isPublishing: Bool! { get }
+    var isSubscribing: Bool! { get }
+    var isIdling: Bool! { get }
+            
     func decide()
-//    func publish()
-//    func subscribe()
-//    func idle()
+    func publish()
+    func subscribe()
+    func idle()
     
-    func receiveNotification(data: Data)
+    func receiveNotification(data: Data, from peripheralUUID: String)
     func receiveAcknowledgement(data: Data)
     func sendNotifications()
     
@@ -35,10 +36,10 @@ protocol NotificationManager: AnyObject {
     
 }
 
-// MARK: Superclass
+// MARK: Epidemic superclass
 
 @Observable
-class PointToPoint: NotificationManager {
+class Epidemic: NotificationManager {
     
     let protocolValue: UInt8!
         
@@ -49,9 +50,10 @@ class PointToPoint: NotificationManager {
     final private(set) var address: Address!
     final fileprivate var connectionManager: ConnectionManager!
     
-    final private(set) var view: [Notification]! = []
+    final private(set) var sendQueue: [Notification: Bool]! = [:]
+    final private(set) var receivedQueue: [Notification]! = []
+    final fileprivate var acknowledgedHashedIDs: [Data]! = []
     final fileprivate var receivedHashedIDs: [Data]! = []
-    final fileprivate var sendQueue: [Notification]! = []
         
     final var isPublishing: Bool! { return connectionManager.mode.isProvider }
     final var isSubscribing: Bool! { return connectionManager.mode.isConsumer }
@@ -94,8 +96,14 @@ class PointToPoint: NotificationManager {
     // MARK: state changing methods
     
     final func decide() {
-        Logger.notification.trace("NotificationManager attempts to \(#function) whether to publish() or subscribe()")
-        fetchAllSendableCount() > 0 ? publish() : subscribe()
+        Logger.notification.info("NotificationManager attempts to \(#function) whether to publish() or subscribe()")
+        let sendableCount = fetchAllSendableCount()
+        Logger.notification.debug("NotificationManager sendableCount = \(sendableCount)")
+        if sendableCount > 0 && !isPublishing {
+            publish()
+        } else if !isSubscribing {
+            subscribe()
+        }
     }
     
     final func publish() {
@@ -106,7 +114,7 @@ class PointToPoint: NotificationManager {
     
     final func subscribe() {
         Logger.notification.trace("NotificationManager attempts to \(#function) to notifications")
-        populateReceivedArray()
+        populateReceivedHashedIDsArray()
         connectionManager.setMode(to: .consumer)
     }
     
@@ -117,7 +125,18 @@ class PointToPoint: NotificationManager {
     
     // MARK: receiving methods
     
-    final func receiveNotification(data: Data) {
+    final fileprivate func populateReceivedHashedIDsArray() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let hashedIDs = fetchAllHashedIDs()
+        if hashedIDs == nil || hashedIDs!.isEmpty {
+            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs array")
+        } else {
+            self.receivedHashedIDs = hashedIDs!
+            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs array with \(self.receivedHashedIDs.count) hashedIDs")
+        }
+    }
+    
+    final func receiveNotification(data: Data, from peripheralUUID: String) {
         Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
         guard data.count >= minNotificationLength else { // TODO: handle
             Logger.notification.warning("NotificationManager will ignore the notification data as it's not at least \(minNotificationLength) bytes long")
@@ -134,8 +153,8 @@ class PointToPoint: NotificationManager {
             Logger.notification.error("NotificationManager can't process the notification data because its protocolValue \(self.protocolValue) doesn't match the notification's controlByte protocolValue \(controlByte.protocolValue)")
             return
         }
-        guard controlByte.destinationControlValue == 0 else { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect
-            Logger.notification.info("Received data indicates no more notifications")
+        guard controlByte.destinationControlValue > 0 else { // TODO: Needs timeout solution as well, so we are not dependent on the peripheral to disconnect
+            Logger.notification.info("Received endOfNotificationsSignal")
             save()
             decide()
             return
@@ -144,15 +163,15 @@ class PointToPoint: NotificationManager {
             Logger.notification.info("NotificationManager will ignore notification #\(printID(hashedID)) as it is already stored")
             return
         }
-        guard controlByte.destinationControlValue == 2 && !(hashedDestinationAddress == Address.Broadcast.hashed || hashedDestinationAddress == self.address.hashed) else {
-            Logger.notification.info("NotificationManager will ignore notification #\(printID(hashedID)), as its hashedDestinationAddress (\(printID(hashedDestinationAddress))) doesn't match the hashed notificationManager address (\(printID(self.address.hashed))) or the hashed broadcast address (\(printID(Address.Broadcast.hashed)))")
+        guard controlByte.destinationControlValue == 2 && hashedDestinationAddress != self.address.hashed else {
+            Logger.notification.info("NotificationManager will ignore notification #\(printID(hashedID)), as its hashedDestinationAddress (\(printID(hashedDestinationAddress))) doesn't match the hashed notificationManager address (\(printID(self.address.hashed)))")
             return
         }
         receivedHashedIDs.append(hashedID)
-        receiveNotification(Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message))
+        receiveNotification(Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message), from: peripheralUUID)
     }
     
-    fileprivate func receiveNotification(_ notification: Notification) {
+    fileprivate func receiveNotification(_ notification: Notification, from peripheralUUID: String) {
         insert(notification)
         Logger.notification.info("NotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
     }
@@ -162,42 +181,36 @@ class PointToPoint: NotificationManager {
         return
     }
     
-    final fileprivate func populateReceivedArray() {
-        Logger.notification.trace("NotificationManager attempts to \(#function) array")
-        let hashedIDs = fetchAllHashedIDs()
-        if hashedIDs == nil || hashedIDs!.isEmpty {
-            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs array")
+    // MARK: sending methods
+    
+    final fileprivate func populateSendQueue() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let notifications = fetchAllSendable()
+        if notifications == nil || notifications!.isEmpty {
+            Logger.notification.debug("NotificationManager has no notifications to add to the sendQueue")
         } else {
-            self.receivedHashedIDs = hashedIDs!
-            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs array with \(self.receivedHashedIDs.count) hashedIDs")
+            self.sendQueue = notifications!.reduce(into: [Notification: Bool]()) { $0[$1] = false }
+            Logger.notification.debug("NotificationManager has successfully populated the sendQueue with \(self.sendQueue.count) notification(s): \(self.sendQueue)")
         }
     }
     
-    // MARK: sending methods
-    
     final func sendNotifications() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        for notification in sendQueue {
-            guard notification.destinationControlValue > 0 else {
-                Logger.notification.trace("NotificationManager skips sending notification #\(printID(notification.hashedID)) because its destinationControlValue is 0")
+        for element in sendQueue {
+            guard !element.value || element.key.destinationControlValue > 0 else {
+                Logger.notification.trace("NotificationManager skips sending notification #\(printID(element.key.hashedID)) in the sendQueue because\(element.value ? " it is marked as sent" : "")\(element.key.destinationControlValue == 0 ? " and/or its destinationControlValue is 0" : "")")
                 continue
             }
-            if sendNotification(notification) {
+            if sendNotification(element.key) {
+                sendQueue[element.key] = true
                 continue
             } else {
                 return // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again
             }
         }
-        Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop successfully, will remove all notifications from the sendQueue and send the EON signal")
+        Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop successfully, will remove all notifications from the sendQueue")
         self.sendQueue.removeAll()
-        let data = Data(count: minNotificationLength)
-        if connectionManager.send(notification: data) {
-            Logger.notification.info("NotificationManager successfully sent \(data.count) zeros")
-            decide()
-        } else {
-            Logger.notification.warning("NotificationManager did not send \(data.count) zeros")
-            // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again
-        }
+        sendEndOfNotificationsSignal()
     }
     
     fileprivate func sendNotification(_ notification: Notification) -> Bool {
@@ -212,7 +225,6 @@ class PointToPoint: NotificationManager {
         if let messageData = notification.message.data(using: .utf8) { data.append(messageData) }
         if connectionManager.send(notification: data) {
             Logger.notification.info("NotificationManager successfully sent notification data of \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
-            try! notification.setDestinationControl(to: 0)
             return true
         } else {
             Logger.notification.warning("NotificationManager did not send notification data of \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
@@ -220,37 +232,42 @@ class PointToPoint: NotificationManager {
         }
     }
     
-    final fileprivate func populateSendQueue() {
+    final fileprivate func sendEndOfNotificationsSignal() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let notifications = fetchAllSendable()
-        if notifications == nil || notifications!.isEmpty {
-            Logger.notification.debug("NotificationManager has no notifications to add to the sendQueue")
+        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 0, sequenceNumberValue: 0)
+        var data = Data()
+        data.append(controlByte.value)
+        data.append(Data(count: minNotificationLength-data.count))
+        assert(data.count == minNotificationLength)
+        if connectionManager.send(notification: data) {
+            Logger.notification.info("NotificationManager successfully sent \(data.count) zeros")
+            decide()
         } else {
-            self.sendQueue = notifications!
-            Logger.notification.debug("NotificationManager has successfully populated the sendQueue with \(self.sendQueue.count) notifications")
+            Logger.notification.warning("NotificationManager did not send \(data.count) zeros")
+            // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again
         }
     }
     
     // MARK: view updating methods
     
-    final func updateView() {
+    final fileprivate func updateView() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let countBefore = view.count
+        let countBefore = receivedQueue.count
         save()
-        view = fetchAll(for: self.address.hashed, includingBroadcast: true) ?? []
-        Logger.notification.debug("NotificationManager added \(self.view.count - countBefore) notification(s) to the notificationView")
+        receivedQueue = fetchAll(for: self.address.hashed) ?? []
+        Logger.notification.debug("NotificationManager added \(self.receivedQueue.count - countBefore) notification(s) to the notificationView")
     }
     
-    final func updateView(with notification: Notification) {
+    final fileprivate func updateView(with notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID))")
-        guard notification.hashedDestinationAddress == self.address.hashed || notification.hashedDestinationAddress == Data(Address.Broadcast.hashed) else { // TODO: handle
-            Logger.notification.warning("NotificationManager won't \(#function) notification #\(printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the NotificationManager address or the Broadcast address")
+        guard notification.hashedDestinationAddress == self.address.hashed else { // TODO: handle
+            Logger.notification.warning("NotificationManager won't \(#function) notification #\(printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the hashed notificationManager address")
             return
         }
-        let countBefore = view.count
+        let countBefore = receivedQueue.count
         save()
-        view.insert(notification, at: 0)
-        Logger.notification.debug("NotificationManager added \(self.view.count - countBefore) notification to the notificationView")
+        receivedQueue.insert(notification, at: 0)
+        Logger.notification.debug("NotificationManager added \(self.receivedQueue.count - countBefore) notification to the notificationView")
     }
     
     // MARK: creation methods
@@ -262,7 +279,7 @@ class PointToPoint: NotificationManager {
     
     // MARK: counting methods
     
-    final func fetchAllSendableCount() -> Int {
+    final fileprivate func fetchAllSendableCount() -> Int {
         Logger.notification.debug("NotificationManager attempts to \(#function)")
         let result = try? context.fetchCount(FetchDescriptor<Notification>(predicate: sendablePredicate))
         return result ?? 0
@@ -270,34 +287,29 @@ class PointToPoint: NotificationManager {
     
     // MARK: fetching methods
     
-    final func fetchAll() -> [Notification]? {
+    final fileprivate func fetchAll() -> [Notification]? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         return try? context.fetch(FetchDescriptor<Notification>())
     }
     
-    final func fetchAllSendable() -> [Notification]? {
+    final fileprivate func fetchAllSendable() -> [Notification]? {
         Logger.notification.debug("NotificationManager attempts to \(#function)")
         return try? context.fetch(FetchDescriptor<Notification>(predicate: sendablePredicate))
     }
     
-    final func fetchAll(for hashedAddress: Data, includingBroadcast: Bool = false) -> [Notification]? {
-        Logger.notification.debug("NotificationManager attempts to \(#function) for hashedAddress (\(printID(hashedAddress)))\(includingBroadcast ? " includingBroadcasts" : "")")
-        let hashedBroadcastAddress = Data(Address.Broadcast.hashed)
-        let predicate = #Predicate<Notification> {
-            if $0.hashedDestinationAddress == hashedAddress { return true }
-            else if includingBroadcast { return $0.hashedDestinationAddress == hashedBroadcastAddress }
-            else { return false }
-        }
+    final fileprivate func fetchAll(for hashedAddress: Data) -> [Notification]? {
+        Logger.notification.debug("NotificationManager attempts to \(#function) for hashedAddress (\(printID(hashedAddress)))")
+        let predicate = #Predicate<Notification> { $0.hashedDestinationAddress == hashedAddress }
         return try? context.fetch(FetchDescriptor<Notification>(predicate: predicate))
     }
     
-    final func fetchAllHashedIDs() -> [Data]? {
+    final fileprivate func fetchAllHashedIDs() -> [Data]? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         guard let results = fetchAll() else { return nil }
         return results.map { $0.hashedID }
     }
     
-    final func fetch(with hashedID: Data) -> Notification? {
+    final fileprivate func fetch(with hashedID: Data) -> Notification? {
         Logger.notification.debug("NotificationManager attempts to \(#function) #\(printID(hashedID))")
         let fetchDescriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in notification.hashedID == hashedID })
         return try? context.fetch(fetchDescriptor)[0]
@@ -307,6 +319,10 @@ class PointToPoint: NotificationManager {
     
     final func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID)) with message '\(notification.message)'")
+        if notification.hashedDestinationAddress == self.address.hashed {
+            try! notification.setDestinationControl(to: 0)
+            Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(printID(notification.hashedID)) because its hashedDestinationAddress matches the hashed notificationManager address")
+        }
         context.insert(notification)
         updateView(with: notification)
     }
@@ -323,10 +339,10 @@ class PointToPoint: NotificationManager {
     // TODO: deletion methods
 }
 
-// MARK: Spray and Wait
+// MARK: Spray and Wait subclass
 
 @Observable
-class BinarySprayAndWait: PointToPoint {
+class BinarySprayAndWait: Epidemic {
     
     var numberOfCopies: Int! // L
 
@@ -340,9 +356,9 @@ class BinarySprayAndWait: PointToPoint {
     
     // MARK: receiving methods
     
-    override fileprivate func receiveNotification(_ notification: Notification) {
+    override fileprivate func receiveNotification(_ notification: Notification, from peripheralUUID: String) {
         insert(notification)
-        connectionManager.acknowledge(hashedID: notification.hashedID)
+        connectionManager.acknowledge(hashedID: notification.hashedID, to: peripheralUUID)
         Logger.notification.info("BinarySprayAndWaitNotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
     }
     
@@ -361,7 +377,7 @@ class BinarySprayAndWait: PointToPoint {
             Logger.notification.info("BinarySprayAndWaitNotificationManager halfed the sequenceNumberValue of notification \(notification.description)")
         } catch {
             try! notification.setDestinationControl(to: 2)
-            Logger.notification.info("BinarySprayAndWaitNotificationManager could not half the sequenceNumberValue and therefore has set the destinationControlValue of notification \(notification.description)")
+            Logger.notification.info("BinarySprayAndWaitNotificationManager could not half the sequenceNumberValue and therefore has set setDestinationControl(to: 2) for notification \(notification.description)")
         }
     }
     
@@ -375,11 +391,11 @@ class BinarySprayAndWait: PointToPoint {
             Logger.notification.trace("BinarySprayAndWaitNotificationManager halfed the sequenceNumberValue of the newControlByte")
         } catch BleepError.invalidControlByteValue {
             newControlByte = try! ControlByte(protocolValue: notification.protocolValue, destinationControlValue: 2, sequenceNumberValue: notification.sequenceNumberValue)
-            Logger.notification.trace("BinarySprayAndWaitNotificationManager could not half the sequenceNumberValue and has therefore set the destinationControlValue of the newControlByte")
+            Logger.notification.trace("BinarySprayAndWaitNotificationManager could not half the sequenceNumberValue and has therefore setDestinationControl(to: 2) for the newControlByte")
         } catch {
             Logger.notification.error("BinarySprayAndWaitNotificationManager encountered an unexpected error while trying to create a newControlByte")
         }
-        Logger.notification.debug("Notification #\(notification.hashedID) newControlByte: \(newControlByte.description)")
+        Logger.notification.debug("Notification #\(printID(notification.hashedID)) newControlByte: \(newControlByte.description)")
         var data = Data()
         data.append(newControlByte.value)
         data.append(notification.hashedID)
@@ -392,7 +408,6 @@ class BinarySprayAndWait: PointToPoint {
         }
         if connectionManager.send(notification: data) {
             Logger.notification.info("BinarySprayAndWaitNotificationManager successfully sent notification data of \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")
-            // TODO: MARK NOTIFICATION AS SEND SO WE SKKIP IT IN THE NEXT LOOP
             return true
         } else {
             Logger.notification.warning("BinarySprayAndWaitNotificationManager did not send notification data of \(data.count-minNotificationLength)+\(minNotificationLength)=\(data.count) bytes")

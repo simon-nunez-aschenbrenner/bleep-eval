@@ -36,10 +36,11 @@ struct Font {
 
 struct ContentView: View {
     
-    @Environment(\.notificationManager) var notificationManager: NotificationManager
-    @FocusState private var isFocused: Bool
+    @Environment(BinarySprayAndWait.self) var notificationManager: BinarySprayAndWait
+    @FocusState var isFocused: Bool
     @State var draft: String = "bleep"
-    @State var destinationAddress: Address = Address.Broadcast
+    @State var hasSetDestinationAddress: Bool = false
+    @State var destinationAddress: Address? = nil
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
     var body: some View {
@@ -47,31 +48,48 @@ struct ContentView: View {
             LogoView()
                 .padding(.vertical)
             
-            // MARK: Source
+            // MARK: Status
             
-            Text("I am \(addressBook.first(where: { $0.rawValue == notificationManager.address.rawValue })?.description ?? "unknown")")
-                .frame(maxWidth: .infinity)
-                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
-                .padding([.leading, .bottom])
+            HStack {
+                Text("I am \(addressBook.first(where: { $0 == notificationManager.address })?.description ?? "unknown")")
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .foregroundColor(Color("bleepPrimary"))
+                if notificationManager.isSubscribing {
+                    Image(systemName: "tray.and.arrow.down.fill")
+                    Text(String(notificationManager.receivedQueue.count))
+                } else if notificationManager.isPublishing {
+                    Image(systemName: "tray.and.arrow.up.fill")
+                    Text("\(notificationManager.sendQueue.count)")
+                } else {
+                    Image(systemName: "tray.fill")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom)
 
             // MARK: Destinations
             
             LazyVGrid(columns: columns) {
                 ForEach(addressBook) { address in
                     Button(action: {
-                        destinationAddress = address
+                        if !hasSetDestinationAddress {
+                            destinationAddress = address
+                            hasSetDestinationAddress = true
+                        } else {
+                            destinationAddress = nil
+                            hasSetDestinationAddress = false
+                        }
                     }) {
                         Text(address.name ?? address.base58Encoded)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                             .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                             .padding()
-                            .background(address.rawValue != destinationAddress.rawValue || address.rawValue == notificationManager.address.rawValue ? Color("bleepSecondary") : Color("bleepPrimary"))
+                            .background(address == destinationAddress ? Color("bleepPrimary") : Color("bleepSecondary"))
                             .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                             .cornerRadius(.infinity)
                     }
-                    .disabled(address.rawValue == notificationManager.address.rawValue)
+                    .disabled(address == notificationManager.address)
                 }
             }
             .padding(.horizontal)
@@ -91,8 +109,8 @@ struct ContentView: View {
                     )
                     .focused($isFocused)
                     .onSubmit {
-                        if !draft.isEmpty {
-                            let notification = notificationManager.create(destinationAddress: destinationAddress, message: draft)
+                        if !draft.isEmpty && destinationAddress != nil {
+                            let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
                             notificationManager.insert(notification)
                             notificationManager.save()
                             draft.removeAll()
@@ -111,47 +129,13 @@ struct ContentView: View {
             }
             .padding([.leading, .trailing])
             
-            // MARK: State
-            
-//            HStack {
-//                Button(action: {
-//                    if !draft.isEmpty {
-//                        let notification = notificationManager.create(destinationAddress: destinationAddress, message: draft)
-//                        notificationManager.insert(notification)
-//                        draft.removeAll()
-//                    }
-//                    notificationManager.save()
-//                    notificationManager.publish()
-//                }) {
-//                    Text("Publish")
-//                        .frame(maxWidth: .infinity)
-//                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-//                        .padding()
-//                        .background(notificationManager.isPublishing ? Color("bleepPrimary") : Color("bleepSecondary"))
-//                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-//                        .cornerRadius(.infinity)
-//                }
-//                Button(action: {
-//                    notificationManager.isIdling ? notificationManager.subscribe(): notificationManager.idle()
-//                }) {
-//                    Text(notificationManager.isIdling ? "Subscribe" : "Idle")
-//                        .frame(maxWidth: .infinity)
-//                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-//                        .padding()
-//                        .background(notificationManager.isSubscribing ? Color("bleepPrimary") : Color("bleepSecondary"))
-//                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-//                        .cornerRadius(.infinity)
-//                }
-//            }
-//            .padding([.leading, .top, .trailing])
-            
             // MARK: Notifications
             
             VStack(alignment: .leading) {
                 Text("Notifications:")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                     .padding([.top, .leading, .trailing])
-                List(notificationManager.view) { notification in
+                List(notificationManager.receivedQueue) { notification in
                     NotificationView(notification: notification)
                 }
                 Spacer()
@@ -217,5 +201,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 3))
+        .environment(BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15))
 }

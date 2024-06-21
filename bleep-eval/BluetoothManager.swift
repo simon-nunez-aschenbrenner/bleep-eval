@@ -10,19 +10,9 @@ import CoreBluetooth
 import CryptoKit
 import OSLog
 
-protocol ConnectionManager {
-    
-    var notificationManager: NotificationManager! { get }
-    var mode: DeviceMode! { get }
+// MARK: ConnectionManager protocol
 
-    init(notificationManager: NotificationManager)
-    
-    func setMode(to mode: DeviceMode)
-    func send(notification data: Data) -> Bool
-    func acknowledge(hashedID data: Data)
-}
-
-enum DeviceMode: Int, CustomStringConvertible {
+enum ConnectionManagerMode: Int, CustomStringConvertible {
     case consumer = -1
     case undefined = 0
     case provider = 1
@@ -38,17 +28,23 @@ enum DeviceMode: Int, CustomStringConvertible {
         case .provider:  return "Provider"
         }
     }
+    
 }
 
-struct BluetoothConstants {
-    static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
-    static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
-    static let notificationAcknowledgementUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
+protocol ConnectionManager {
     
-    static let peripheralName = "bleeper"
-    static let centralIdentifierKey = "com.simon.bleep-eval.central"
-    static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
+    var notificationManager: NotificationManager! { get }
+    var mode: ConnectionManagerMode! { get }
+
+    init(notificationManager: NotificationManager)
+    
+    func setMode(to mode: ConnectionManagerMode)
+    func send(notification data: Data) -> Bool
+    func acknowledge(hashedID data: Data, to peripheralUUID: String)
+    
 }
+
+// MARK: BluetoothManager class
 
 @Observable
 class BluetoothManager: NSObject, ConnectionManager {
@@ -58,7 +54,7 @@ class BluetoothManager: NSObject, ConnectionManager {
     private var peripheralManagerDelegate: PeripheralManagerDelegate! // Provider
     private var centralManagerDelegate: CentralManagerDelegate! // Consumer
     
-    private(set) var mode: DeviceMode! {
+    private(set) var mode: ConnectionManagerMode! {
         didSet {
             Logger.bluetooth.info("BluetoothManager set mode to '\(self.mode)'")
         }
@@ -89,7 +85,7 @@ class BluetoothManager: NSObject, ConnectionManager {
         }
     }
     
-    func setMode(to mode: DeviceMode) {
+    func setMode(to mode: ConnectionManagerMode) {
         self.mode = mode
         switch mode {
         case .consumer:
@@ -111,13 +107,13 @@ class BluetoothManager: NSObject, ConnectionManager {
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
-    func acknowledge(hashedID data: Data) {
+    func acknowledge(hashedID data: Data, to peripheralUUID: String) {
         guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
-            Logger.central.error("Central can't \(#function) because the centralManagerDelegate peripheral property is nil")
+            Logger.central.error("Central can't \(#function) because it did not find a matching peripheral in its peripherals array")
             return
         }
         guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: handle
-            Logger.central.error("Central can't \(#function) because the centralManagerDelegate notificationAcknowledgement property is nil")
+            Logger.central.error("Central can't \(#function) because the centralManagerDelegate notificationAcknowledgement characteristic property is nil")
             return
         }
         peripheral.writeValue(data, for: notificationAcknowledgement, type: .withResponse)

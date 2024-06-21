@@ -3,4 +3,52 @@
    uuid = "552D962A-8086-4D84-8E6F-1D767769ABE0"
    type = "1"
    version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "EA663826-CFE7-4F8B-84C0-39C96B952A9E"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "bleep-eval/BluetoothManager.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "63"
+            endingLineNumber = "63"
+            landmarkName = "init(notificationManager:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "EA663826-CFE7-4F8B-84C0-39C96B952A9E - d5c604569156e261"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "bleep_eval.BluetoothManager.__allocating_init(notificationManager: bleep_eval.NotificationManager) -&gt; bleep_eval.BluetoothManager"
+                  moduleName = "bleep-eval"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/simon/Desktop/Uni/S7_Abschlussarbeit/S7_Code/bleep-eval/bleep-eval/BluetoothManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "0"
+                  endingLineNumber = "0">
+               </Location>
+               <Location
+                  uuid = "EA663826-CFE7-4F8B-84C0-39C96B952A9E - 55ce3e342ae1db1b"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "bleep_eval.BluetoothManager.init(notificationManager: bleep_eval.NotificationManager) -&gt; bleep_eval.BluetoothManager"
+                  moduleName = "bleep-eval"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///var/folders/sw/3q_6xhp90l1chxdhzqdzv6tr0000gn/T/swift-generated-sources/@__swiftmacro_10bleep_eval16BluetoothManagerC012notificationD018ObservationTrackedfMp_.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "3"
+                  endingLineNumber = "3">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
 </Bucket>

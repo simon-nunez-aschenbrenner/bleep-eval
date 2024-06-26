@@ -132,49 +132,5 @@ class BluetoothManager: NSObject, ConnectionManager {
         }
         centralManagerDelegate!.centralManager.cancelPeripheralConnection(peripheral)
     }
-
-//    TODO: delete
-//    func acknowledge(hashedID data: Data, to peripheralUUID: String) {
-//        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-//        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
-//            Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
-//            return
-//        }
-//        guard peripheral.identifier.uuidString == peripheralUUID else { // TODO: handle
-//            Logger.bluetooth.error("BluetoothManager can't \(#function) because the provided UUID '\(printID(peripheralUUID))' does not match the centralManagerDelegate peripheral UUID '\(printID(peripheral.identifier.uuidString))'")
-//            return
-//        }
-//        guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: handle
-//            Logger.bluetooth.error("BluetoothManager can't \(#function) because the centralManagerDelegate notificationAcknowledgement characteristic property is nil")
-//            return
-//        }
-//        peripheral.writeValue(data, for: notificationAcknowledgement, type: .withResponse)
-//    }
-//
-//    func disconnectFromProvider(with peerUUID: String) {
-//        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-//        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
-//            Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
-//            return
-//        }
-//        guard peripheral.identifier.uuidString == peerUUID else { // TODO: handle
-//            Logger.bluetooth.error("BluetoothManager can't \(#function) because the provided UUID '\(printID(peerUUID))' does not match the centralManagerDelegate peripheral UUID '\(printID(peripheral.identifier.uuidString))'")
-//            return
-//        }
-//        centralManagerDelegate.disconnect(from: peripheral)
-//    }
-//
-//    func disconnectFromProvider() {
-//        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-//        guard centralManagerDelegate.peripheral != nil else { // TODO: handle
-//            Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
-//            return
-//        }
-//        centralManagerDelegate.disconnect()
-//    }
-//    
-//    func disconnectFromConsumer() {
-//        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-//        peripheralManagerDelegate.forceDisconnect()
     
 }

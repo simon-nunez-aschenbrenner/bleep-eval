@@ -81,7 +81,7 @@ class Notification: Equatable, CustomStringConvertible {
         self.protocolValue = controlByte.protocolValue
         self.destinationControlValue = controlByte.destinationControlValue
         self.sequenceNumberValue = controlByte.sequenceNumberValue
-        let id = String(sourceAddress.rawValue).appendingFormat("%064u", UInt64.random(in: UInt64.min...UInt64.max)) // TODO: replace with UInt128 in the future
+        let id = String(sourceAddress.rawValue).appendingFormat("%064u", UInt64.random(in: UInt64.min...UInt64.max))
         self.hashedID = Data(SHA256.hash(data: id.data(using: .utf8)!))
         self.hashedSourceAddress = sourceAddress.hashed
         self.hashedDestinationAddress = destinationAddress.hashed

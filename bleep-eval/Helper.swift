@@ -8,7 +8,7 @@
 import CoreBluetooth
 import Foundation
 
-let addressBook: [Address] = [Address("XVQ6uh5nTLN", name: "Simon")!, Address("3NHph2xbJS4", name: "A")!]
+let addressBook: [Address] = [Address("XVQ6uh5nTLN", name: "Simon")!, Address("3NHph2xbJS4", name: "A")!, Address("4nhPH3XBjs5", name: "X")!]
 let base58Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
 let minAddressRawValue: UInt64 = 1 // 0 reserved for Broadcast
 
@@ -29,7 +29,6 @@ struct BluetoothConstants {
     static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
     static let notificationAcknowledgementUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
     
-    static let peripheralName = "bleeper"
     static let centralIdentifierKey = "com.simon.bleep-eval.central"
     static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
     

@@ -37,57 +37,85 @@ struct Font {
 struct ContentView: View {
     
     @Environment(BinarySprayAndWait.self) var notificationManager: BinarySprayAndWait
-    @FocusState var isFocused: Bool
-    @State var draft: String = "bleep"
-    @State var hasSetDestinationAddress: Bool = false
-    @State var destinationAddress: Address? = nil
-    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    @FocusState private var isFocused: Bool
+    @State private var draft: String = ""
+    @State private var destinationAddress: Address? = nil
+    
+    private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    // Padding properties
+    private let largePadding: CGFloat = Font.Size.Text
+    private let mediumPadding: CGFloat = Font.Size.Text * 0.5
+    private let smallPadding: CGFloat = Font.Size.Text * 0.25
+    // Rounded Rectangle properties
+    private let sendButtonSize: CGFloat = Font.Size.Text * 2
+    private let cornerRadius: CGFloat = (Font.Size.Text * 2.5) * 0.5
+    private let lineWidth: CGFloat = 1
+    private let singleLineHeight: CGFloat = Font.Size.Text * 2.5
+    @State private var textEditorHeight: CGFloat = Font.Size.Text * 2.5 // sendButtonSize + small vertical padding = Font.Size.Text + small and medium vertical padding
+    
+    private func adjustTextEditorHeight() {
+        let newHeight = draft.boundingRect(
+            with: CGSize(width: UIScreen.main.bounds.width - (2*largePadding+mediumPadding+3*smallPadding+2*lineWidth+sendButtonSize), height: CGFloat.infinity),
+            options: .usesLineFragmentOrigin,
+            attributes: [.font: UIFont(name: Font.BHTCaseText.Regular, size: Font.Size.Text)!],
+            context: nil
+        ).height + 2*mediumPadding
+        withAnimation { textEditorHeight = newHeight }
+    }
+    
+    private func sendMessage() {
+        if !draft.isEmpty && destinationAddress != nil {
+            let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
+            notificationManager.insert(notification)
+            notificationManager.save()
+            draft.removeAll()
+        }
+        notificationManager.decide()
+    }
     
     var body: some View {
         VStack(alignment: .leading) {
             LogoView()
-                .padding(.vertical)
+            .padding(.vertical, largePadding)
             
             // MARK: Status
             
             HStack {
                 Text("I am \(addressBook.first(where: { $0 == notificationManager.address })?.description ?? "unknown")")
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
-                if notificationManager.isSubscribing {
-                    Image(systemName: "tray.and.arrow.down.fill")
-                    Text(String(notificationManager.receivedQueue.count))
-                } else if notificationManager.isPublishing {
-                    Image(systemName: "tray.and.arrow.up.fill")
-                    Text("\(notificationManager.sendQueue.count)")
-                } else {
-                    Image(systemName: "tray.fill")
+                Button(action: { notificationManager.reset() }) {
+                    if notificationManager.isSubscribing {
+                        Image(systemName: "tray.and.arrow.down.fill")
+                    } else if notificationManager.isPublishing {
+                        Image(systemName: "tray.and.arrow.up.fill")
+                    } else {
+                        Image(systemName: "tray.fill")
+                    }
                 }
+                .foregroundColor(Color("bleepPrimary"))
             }
             .frame(maxWidth: .infinity)
-            .padding(.bottom)
+            .padding(.bottom, largePadding)
 
             // MARK: Destinations
             
             LazyVGrid(columns: columns) {
                 ForEach(addressBook) { address in
                     Button(action: {
-                        if !hasSetDestinationAddress {
-                            destinationAddress = address
-                            hasSetDestinationAddress = true
-                        } else {
+                        if destinationAddress == address {
                             destinationAddress = nil
-                            hasSetDestinationAddress = false
+                        } else {
+                            destinationAddress = address
                         }
                     }) {
                         Text(address.name ?? address.base58Encoded)
                             .lineLimit(1)
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: singleLineHeight)
                             .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                            .padding()
                             .background(address == destinationAddress ? Color("bleepPrimary") : Color("bleepSecondary"))
                             .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                            .cornerRadius(.infinity)
+                            .cornerRadius(cornerRadius)
                     }
                     .disabled(address == notificationManager.address)
                 }
@@ -96,52 +124,62 @@ struct ContentView: View {
             
             // MARK: Message
             
-            HStack(alignment: .bottom) {
-                TextField("Enter message", text: $draft)
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .padding()
-                    .cornerRadius(.infinity)
+            VStack(alignment: .trailing) {
+                ZStack(alignment: .bottomTrailing) {
+                    TextEditor(text: $draft)
+                    .background(Color.clear)
+                    .frame(height: textEditorHeight)
+                    .padding(.leading, mediumPadding)
+                    .padding(.trailing, sendButtonSize+smallPadding)
+                    .padding(.bottom, lineWidth)
+                    .onChange(of: draft, initial: true) { adjustTextEditorHeight() }
+                    .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                     .overlay(
-                        RoundedRectangle(cornerRadius: .infinity)
-                            .stroke(Color("bleepPrimary"), lineWidth: 1)
+                        Group { if draft.isEmpty {
+                            Text("Select recipient and enter message")
+                            .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color.gray)
+                            .padding(.leading, mediumPadding+smallPadding+lineWidth)
+                            .allowsHitTesting(false)
+                            }
+                        },
+                        alignment: .leading
                     )
-                    .focused($isFocused)
-                    .onSubmit {
-                        if !draft.isEmpty && destinationAddress != nil {
-                            let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
-                            notificationManager.insert(notification)
-                            notificationManager.save()
-                            draft.removeAll()
-                        }
-                        notificationManager.decide()
-                        isFocused = false
-                    }
-                
-                Button(action: {
-                    draft = generateText(with: maxMessageLength)
-                }) {
-                    Text("\(draft.count)/\(maxMessageLength)")
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    Button(action: sendMessage) {
+                        Image(systemName: draft.isEmpty || destinationAddress == nil ? "questionmark.circle.fill" : "arrow.up.circle.fill")
+                        .resizable()
+                        .frame(width: sendButtonSize, height: sendButtonSize)
                         .foregroundColor(Color("bleepPrimary"))
+                    }
+                    .padding(smallPadding)
                 }
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(Color("bleepSecondary"), lineWidth: lineWidth)
+                )
+                .padding(.horizontal, largePadding)
+                Button(action: { draft.isEmpty ? draft = generateText(with: maxMessageLength) : draft.removeAll() }) {
+                    Text("\(draft.count)/\(maxMessageLength)")
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .foregroundColor(Color("bleepSecondary"))
+                }
+                .padding(.trailing, largePadding)
             }
-            .padding([.leading, .trailing])
-            
+
             // MARK: Notifications
             
-            VStack(alignment: .leading) {
-                Text("Notifications:")
+            VStack(alignment: .center) {
+                Text("Received \(notificationManager.inbox.count) notifications")
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .padding([.top, .leading, .trailing])
-                List(notificationManager.receivedQueue) { notification in
+                    .underline()
+                    .padding(.horizontal)
+                List(notificationManager.inbox) { notification in
                     NotificationView(notification: notification)
                 }
                 Spacer()
             }
-            Spacer()
         }
+        .dynamicTypeSize(DynamicTypeSize.large...DynamicTypeSize.large)
     }
 }
 
@@ -183,7 +221,7 @@ struct LogoView: View {
                 ZStack(alignment: .trailing) {
                     Color("bleepPrimary")
                         .frame(maxWidth: .infinity, maxHeight: height, alignment: .leading)
-                        .ignoresSafeArea()
+//                        .ignoresSafeArea()
                     Text("bleep")
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Logo))
                         .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
@@ -201,5 +239,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15))
+        .environment(try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15))
 }

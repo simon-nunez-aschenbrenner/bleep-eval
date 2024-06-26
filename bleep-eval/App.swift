@@ -32,7 +32,7 @@ extension Logger {
 @main
 struct bleepEvalApp: App {
 
-    @State private var notificationManager = BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)!
+    @State private var notificationManager = try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)
 
     var body: some Scene {
         WindowGroup {

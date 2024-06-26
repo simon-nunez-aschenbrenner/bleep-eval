@@ -23,7 +23,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     var peripheral: CBPeripheral? // TODO: multiple peripherals
     var notificationAcknowledgement: CBCharacteristic?
     
-    var recentNameKeys: [String] = []
+    var recentIdentifiers: [String] = [] // TODO: should be property of the connectionManager
     
     // MARK: initializing methods
             
@@ -91,16 +91,16 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         Logger.central.info("Central didDiscover peripheral '\(printID(peripheral.identifier.uuidString))' (RSSI: \(RSSI.intValue)) and attempts to connect to it")
-        guard let localNameKey = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
-            Logger.central.error("Central will ignore peripheral '\(printID(peripheral.identifier.uuidString))' as did not advertise a localNameKey")
+        guard let identifier = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
+            Logger.central.error("Central will ignore peripheral '\(printID(peripheral.identifier.uuidString))' as did not advertise an identifier")
             return
         }
-        guard !recentNameKeys.contains(localNameKey) else {
+        guard !recentIdentifiers.contains(identifier) else {
             Logger.central.warning("Central will ignore peripheral '\(printID(peripheral.identifier.uuidString))' as it has been connected recently")
             return
         }
-        Logger.central.debug("Central appends localNameKey '\(localNameKey)' of peripheral '\(printID(peripheral.identifier.uuidString)) to the recentNameKeys array")
-        recentNameKeys.append(localNameKey)
+        Logger.central.debug("Central appends identifier '\(identifier)' of peripheral '\(printID(peripheral.identifier.uuidString)) to the recentIdentifiers array")
+        recentIdentifiers.append(identifier)
         self.peripheral = peripheral
         peripheral.delegate = self
         notificationAcknowledgement = nil

@@ -49,12 +49,13 @@ struct ContentView: View {
     // Rounded Rectangle properties
     private let sendButtonSize: CGFloat = Font.Size.Text * 2
     private let cornerRadius: CGFloat = (Font.Size.Text * 2.5) * 0.5
-    private let lineWidth: CGFloat = 1
+    private let lineWidth: CGFloat = 1.0
     private let singleLineHeight: CGFloat = Font.Size.Text * 2.5
     @State private var textEditorHeight: CGFloat = Font.Size.Text * 2.5 // sendButtonSize + small vertical padding = Font.Size.Text + small and medium vertical padding
+    @FocusState private var textEditorFocused: Bool
     
     private func adjustTextEditorHeight() {
-        let newHeight = draft.boundingRect(
+        let newHeight: CGFloat = draft.boundingRect(
             with: CGSize(width: UIScreen.main.bounds.width - (2*largePadding+mediumPadding+3*smallPadding+2*lineWidth+sendButtonSize), height: CGFloat.infinity),
             options: .usesLineFragmentOrigin,
             attributes: [.font: UIFont(name: Font.BHTCaseText.Regular, size: Font.Size.Text)!],
@@ -63,7 +64,7 @@ struct ContentView: View {
         withAnimation { textEditorHeight = newHeight }
     }
     
-    private func sendMessage() {
+    private func decide() {
         if !draft.isEmpty && destinationAddress != nil {
             let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
             notificationManager.insert(notification)
@@ -73,6 +74,10 @@ struct ContentView: View {
         notificationManager.decide()
     }
     
+    private func getDraftCount() -> Int {
+        return draft.data(using: .utf8)?.count ?? 0
+    }
+    
     var body: some View {
         VStack(alignment: .leading) {
             LogoView()
@@ -80,11 +85,16 @@ struct ContentView: View {
             
             // MARK: Status
             
-            HStack {
+            HStack(alignment: .bottom) {
                 Text("I am \(addressBook.first(where: { $0 == notificationManager.address })?.description ?? "unknown")")
                     .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
-                Button(action: { notificationManager.reset() }) {
+                Button(action: {
+                    draft.removeAll()
+                    destinationAddress = nil
+                    textEditorFocused = false
+                    notificationManager.reset()
+                }) {
                     if notificationManager.isSubscribing {
                         Image(systemName: "tray.and.arrow.down.fill")
                     } else if notificationManager.isPublishing {
@@ -140,12 +150,15 @@ struct ContentView: View {
                             .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                             .foregroundColor(Color.gray)
                             .padding(.leading, mediumPadding+smallPadding+lineWidth)
-                            .allowsHitTesting(false)
                             }
                         },
                         alignment: .leading
                     )
-                    Button(action: sendMessage) {
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .focused($textEditorFocused)
+                    .onTapGesture { textEditorFocused = true }
+                    Button(action: decide) {
                         Image(systemName: draft.isEmpty || destinationAddress == nil ? "questionmark.circle.fill" : "arrow.up.circle.fill")
                         .resizable()
                         .frame(width: sendButtonSize, height: sendButtonSize)
@@ -158,8 +171,10 @@ struct ContentView: View {
                         .stroke(Color("bleepSecondary"), lineWidth: lineWidth)
                 )
                 .padding(.horizontal, largePadding)
-                Button(action: { draft.isEmpty ? draft = generateText(with: maxMessageLength) : draft.removeAll() }) {
-                    Text("\(draft.count)/\(maxMessageLength)")
+                Button(action: {
+                    draft.isEmpty ? draft = generateText(with: maxMessageLength) : draft.removeAll()
+                }) {
+                    Text("\(getDraftCount())/\(maxMessageLength)")
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepSecondary"))
                 }
@@ -180,6 +195,7 @@ struct ContentView: View {
             }
         }
         .dynamicTypeSize(DynamicTypeSize.large...DynamicTypeSize.large)
+//        .onAppear() { textEditorFocused = true }
     }
 }
 

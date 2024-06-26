@@ -14,7 +14,7 @@ import OSLog
 protocol NotificationManager: AnyObject {
     
     var address: Address! { get }
-    var identifier: String! { get }
+    var identifier: String! { get } // TODO: should be property of the connectionManager
     var inbox: [Notification]! { get }
     
     var isPublishing: Bool! { get }
@@ -139,11 +139,6 @@ class Epidemic: NotificationManager {
 //        !isIdling ? connectionManager.setMode(to: .undefined) : Logger.notification.trace("NotificationManager is already idling")
     }
     
-    final private func updateIdentifier() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        self.identifier = String(Address().base58Encoded.suffix(8))
-    }
-    
     // TODO: delete
     final func reset() {
         Logger.notification.trace("NotificationManager attempts to \(#function) itself")
@@ -247,53 +242,7 @@ class Epidemic: NotificationManager {
         return
     }
     
-    // MARK: inbox methods
-    
-    final fileprivate func updateInbox() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let countBefore = inbox.count
-        save()
-        inbox = fetchAll(for: self.address.hashed) ?? []
-        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification(s) to the inbox")
-    }
-    
-    final fileprivate func updateInbox(with notification: Notification) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID))")
-        guard notification.hashedDestinationAddress == self.address.hashed else { // TODO: handle
-            Logger.notification.warning("NotificationManager won't \(#function) notification #\(printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the hashed notificationManager address")
-            return
-        }
-        let countBefore = inbox.count
-        save()
-        inbox.insert(notification, at: 0)
-        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification to the inbox")
-    }
-    
     // MARK: sending methods
-    
-    // TODO: delete?
-//    final fileprivate func populateSendQueue() {
-//        Logger.notification.trace("NotificationManager attempts to \(#function)")
-//        let countBefore = sendQueue.count
-//        Logger.notification.trace("NotificationManager sendQueue contains \(countBefore) notification(s)")
-//        let sendableNotifications = fetchAllSendable()
-//        if sendableNotifications == nil || sendableNotifications!.isEmpty {
-//            Logger.notification.debug("NotificationManager has no sendableNotifications to add to the sendQueue")
-//            return
-//        } else {
-//            let sendableCount = sendableNotifications!.count
-//            Logger.notification.debug("NotificationManager has fetched \(sendableCount) sendableNotifications")
-//            for notification in sendableNotifications! {
-//                if sendQueue.keys.contains(where: { $0 == notification }) {
-//                    Logger.notification.trace("NotificationManager skips adding notification #\(printID(notification.hashedID)) because it is already in the sendQueue")
-//                } else {
-//                    sendQueue[notification] = false
-//                    Logger.notification.trace("NotificationManager added notification #\(printID(notification.hashedID)) to the sendQueue")
-//                }
-//            }
-//            Logger.notification.debug("NotificationManager has successfully populated the sendQueue with \(self.sendQueue.count-countBefore) notification(s) for a total of \(self.sendQueue.count) notification(s)")
-//        }
-//    }
     
     final func sendNotifications() {
         Logger.notification.trace("NotificationManager may attempt to \(#function)")
@@ -420,6 +369,11 @@ class Epidemic: NotificationManager {
         updateInbox(with: notification) // TODO: should maybe be called directly by the caller?
     }
     
+    final private func updateIdentifier() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        self.identifier = String(Address().base58Encoded.suffix(8))
+    }
+    
     final func save() {
         do {
             try context.save()
@@ -427,6 +381,28 @@ class Epidemic: NotificationManager {
         } catch {
             Logger.notification.fault("NotificationManager failed to save the context: \(error)")
         }
+    }
+    
+    // MARK: inbox methods
+    
+    final fileprivate func updateInbox() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let countBefore = inbox.count
+        save()
+        inbox = fetchAll(for: self.address.hashed) ?? []
+        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification(s) to the inbox")
+    }
+    
+    final fileprivate func updateInbox(with notification: Notification) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID))")
+        guard notification.hashedDestinationAddress == self.address.hashed else { // TODO: handle
+            Logger.notification.warning("NotificationManager won't \(#function) notification #\(printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the hashed notificationManager address")
+            return
+        }
+        let countBefore = inbox.count
+        save()
+        inbox.insert(notification, at: 0)
+        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification to the inbox")
     }
     
     // TODO: deletion methods

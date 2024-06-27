@@ -73,7 +73,7 @@ class Notification: Equatable, CustomStringConvertible {
     let message: String!
     
     var description: String {
-        return "#\(printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(printID(hashedSourceAddress))) at \(printTimestamp(sentTimestamp)) to (\(printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + printTimestamp(receivedTimestamp!)) and message length \(message.count)"
+        return "#\(Utils.printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
     }
     
     // Used by sender

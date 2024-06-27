@@ -14,6 +14,9 @@ import UIKit
 @Model
 class Address: Equatable, CustomStringConvertible {
     
+    static let base58Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
+    static let minRawValue: UInt64 = 1 // 0 reserved for Broadcast
+    
     let rawValue: UInt64!
     @Attribute(.unique) let isOwn: Bool!
     var name: String?
@@ -28,18 +31,17 @@ class Address: Equatable, CustomStringConvertible {
         return encode(rawValue)
     }
     var description: String {
-        return "\(self.name == nil ? "" : "'\(self.name!)' ")\(self.base58Encoded) (\(printID(self.hashed)))\(self.isOwn ? " isOwn" : "")"
+        return "\(self.name == nil ? "" : "'\(self.name!)' ")\(self.base58Encoded) (\(Utils.printID(self.hashed)))\(self.isOwn ? " isOwn" : "")"
     }
     
     init() {
-        self.rawValue = UInt64.random(in: minAddressRawValue...UInt64.max)
+        self.rawValue = UInt64.random(in: Address.minRawValue...UInt64.max)
         self.isOwn = true
-        self.name = UIDevice.current.name // TODO: wrong!
         Logger.notification.trace("Random address initialized: \(self.description)")
     }
     
     init(name: String) {
-        self.rawValue = UInt64.random(in: minAddressRawValue...UInt64.max)
+        self.rawValue = UInt64.random(in: Address.minRawValue...UInt64.max)
         self.isOwn = true
         self.name = name
         Logger.notification.trace("Random address initialized: \(self.description)")
@@ -65,7 +67,7 @@ class Address: Equatable, CustomStringConvertible {
         var integer = UInt64(1)
         let byteArray = [UInt8](base58.utf8)
         for char in byteArray.reversed() {
-            guard let alphabetIndex = base58Alphabet.firstIndex(of: char) else {
+            guard let alphabetIndex = Address.base58Alphabet.firstIndex(of: char) else {
                 return nil
             }
             result += (integer * UInt64(alphabetIndex))
@@ -78,12 +80,12 @@ class Address: Equatable, CustomStringConvertible {
         var integer = integer
         var result = ""
         if integer == 0 {
-            return String(Character(Unicode.Scalar(base58Alphabet[0])))
+            return String(Character(Unicode.Scalar(Address.base58Alphabet[0])))
         }
         while integer > 0 {
             let remainder = Int(integer % 58)
             integer /= 58
-            result.append(Character(Unicode.Scalar(base58Alphabet[remainder])))
+            result.append(Character(Unicode.Scalar(Address.base58Alphabet[remainder])))
         }
         return String(result.reversed())
     }

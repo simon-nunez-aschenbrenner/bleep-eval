@@ -90,23 +90,14 @@ struct ContentView: View {
             .padding([.leading, .bottom, .trailing], Dimensions.largePadding)
             .onChange(of: notificationManagerProtocol, { changeProtocol(to: notificationManagerProtocol) })
             
-            HStack(alignment: .bottom) {
-                Text("I am \(addressBook.first(where: { $0 == notificationManager.address })?.description ?? "unknown")")
+            HStack {
+                Spacer()
+                Text("Address: \(notificationManager.address.description.dropLast(6))")
                     .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
-                if notificationManager.isSubscribing {
-                    Image(systemName: "tray.and.arrow.down.fill")
-                        .foregroundColor(Color("bleepPrimary"))
-                } else if notificationManager.isPublishing {
-                    Image(systemName: "tray.and.arrow.up.fill")
-                        .foregroundColor(Color("bleepPrimary"))
-                } else {
-                    Image(systemName: "tray.fill")
-                        .foregroundColor(Color("bleepPrimary"))
-                }
+                    .padding(.bottom, Dimensions.largePadding)
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, Dimensions.largePadding)
             
             if showAutoView {
                 AutoView(notificationManager)
@@ -123,37 +114,14 @@ struct ContentView: View {
 struct AutoView: View {
     
     unowned var notificationManager: NotificationManager!
-    @State private var runID: Int = 0
     @State private var isRunning: Bool = false
+    @State private var runID: Int = 0
+    @State private var isSending: Bool = false
     @State private var frequency: Int = 2
     @State private var variance: Int = 1
-//    private let dispatchGroup = DispatchGroup()
     
     init(_ notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
-    }
-    
-    private func simulate() {
-        Logger.view.info("View attempts to \(#function)")
-        Logger.view.debug("Simulation runID=\(runID), frequency=\(frequency)s, variance=±\(variance*25)%")
-        EvaluationLogger.instance.runID = runID
-        let destinations = addressBook.filter({ $0 != notificationManager.address })
-        while isRunning {
-//            dispatchGroup.enter()
-//            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(frequency+Int(Float(frequency)*Float.random(in: Float(-variance)/4...Float(variance)/4)))) {
-                let destinationAddress = destinations.randomElement()!
-                let message = generateText(with: Int.random(in: 77...maxMessageLength))
-                let notification = notificationManager.create(destinationAddress: destinationAddress, message: message)
-                notificationManager.insert(notification)
-                notificationManager.save()
-                notificationManager.decide()
-//            }
-            // TODO: make non blocking!
-            sleep(UInt32(frequency+Int(Float(frequency)*Float.random(in: Float(-variance)/4...Float(variance)/4))))
-        }
-//        dispatchGroup.notify(queue: DispatchQueue.main) {
-//            Logger.view.trace("View finished \(#function) loop")
-//        }
     }
     
     var body: some View {
@@ -161,21 +129,32 @@ struct AutoView: View {
         // MARK: Simulation parameters
         
         List {
-            Text("Simulation")
+            Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
                 .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-            Stepper("Run #\(runID)", value: $runID, in: 0...Int.max)                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(Color("bleepPrimary"))
-            Stepper("Send every \(frequency) seconds", value: $frequency, in: 2...Int.max)                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
+            HStack {
+                Text("Send and receive")
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .foregroundColor(Color("bleepPrimary"))
+                Toggle("", isOn: $isSending)
+                    .padding(.trailing, Dimensions.largePadding)
+                    .tint(Color("bleepPrimary"))
+            }
+            Stepper("Send every \(frequency) seconds", value: $frequency, in: 2...Int.max)
+                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                .disabled(!isSending)
             Stepper("with ±\(variance*25)% variance", value: $variance, in: 0...4)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
+                .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                .disabled(!isSending)
             Button(action: {
                 if !isRunning {
                     isRunning = true
-                    simulate()
+                    Simulator.start(with: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), variance: UInt(variance))
                 } else {
                     isRunning = false
+                    Simulator.stop(with: notificationManager)
                 }
             }) {
                 Text(!isRunning ? "Start" : "Stop")
@@ -218,15 +197,14 @@ struct ManualView: View {
         withAnimation { textEditorHeight = newHeight }
     }
     
-    private func decide() { // TODO: rename
-        Logger.view.info("View attempts to \(#function)")
+    private func sendMessage() { // TODO: rename
         if !draft.isEmpty && destinationAddress != nil {
+            Logger.view.info("View attempts to \(#function)")
             let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
             notificationManager.insert(notification)
             notificationManager.save()
             draft.removeAll()
         }
-        notificationManager.decide()
     }
     
     private func getDraftCount() -> Int {
@@ -238,7 +216,7 @@ struct ManualView: View {
         // MARK: Destinations
         
         LazyVGrid(columns: columns) {
-            ForEach(addressBook) { address in
+            ForEach(Utils.addressBook) { address in
                 Button(action: {
                     if destinationAddress == address {
                         destinationAddress = nil
@@ -285,13 +263,14 @@ struct ManualView: View {
                 .textInputAutocapitalization(.never)
                 .focused($textEditorFocused)
                 .onTapGesture { textEditorFocused = true }
-                Button(action: decide) {
-                    Image(systemName: draft.isEmpty || destinationAddress == nil ? "questionmark.circle.fill" : "arrow.up.circle.fill")
+                Button(action: sendMessage) {
+                    Image(systemName: "arrow.up.circle.fill")
                     .resizable()
                     .frame(width: Dimensions.sendButtonSize, height: Dimensions.sendButtonSize)
-                    .foregroundColor(Color("bleepPrimary"))
+                    .foregroundColor(draft.isEmpty || destinationAddress == nil ? Color("bleepSecondary"): Color("bleepPrimary"))
                 }
                 .padding(Dimensions.smallPadding)
+                .disabled(draft.isEmpty || destinationAddress == nil)
             }
             .overlay(
                 RoundedRectangle(cornerRadius: Dimensions.cornerRadius)
@@ -299,10 +278,10 @@ struct ManualView: View {
             )
             .padding(.horizontal, Dimensions.largePadding)
             Button(action: {
-                draft.isEmpty ? draft = generateText(with: maxMessageLength) : draft.removeAll()
+                draft.isEmpty ? draft = Utils.generateText(with: notificationManager.maxMessageLength) : draft.removeAll()
                 textEditorFocused = false
             }) {
-                Text("\(getDraftCount())/\(maxMessageLength)")
+                Text("\(getDraftCount())/\(notificationManager.maxMessageLength)")
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(Color("bleepSecondary"))
             }

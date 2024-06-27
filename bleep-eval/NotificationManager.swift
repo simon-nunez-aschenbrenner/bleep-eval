@@ -161,6 +161,7 @@ class Epidemic: NotificationManager {
     fileprivate func receiveNotification(_ notification: Notification) {
         insert(notification)
         Logger.notification.info("NotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
+        updateInbox(with: notification)
     }
     
     func receiveAcknowledgement(data: Data) { // TODO: handle
@@ -284,7 +285,7 @@ class Epidemic: NotificationManager {
     // MARK: insertion methods
     
     final func insert(_ notification: Notification) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID)) with message '\(notification.message)'")
+        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
         if notification.hashedDestinationAddress == self.address.hashed { // TODO: In the future we may want to handle the notification as any other and resend it to obfuscate it was meant for us
             try! notification.setDestinationControl(to: 0)
             Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because its hashedDestinationAddress matches the hashed notificationManager address")
@@ -296,7 +297,6 @@ class Epidemic: NotificationManager {
         }
         context.insert(notification)
         updateIdentifier()
-        updateInbox(with: notification) // TODO: should maybe be called directly by the caller?
     }
     
     final private func updateIdentifier() {
@@ -364,6 +364,7 @@ class BinarySprayAndWait: Epidemic {
         insert(notification)
         connectionManager.acknowledge(hashedID: notification.hashedID)
         Logger.notification.info("BinarySprayAndWaitNotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
+        updateInbox(with: notification)
     }
     
     override func receiveAcknowledgement(data: Data) {
@@ -388,7 +389,7 @@ class BinarySprayAndWait: Epidemic {
     // MARK: sending methods
     
     override fileprivate func sendNotification(_ notification: Notification) -> Bool {
-        Logger.notification.debug("BinarySprayAndWaitNotificationManager attempts to sendNotification \(notification.description) with message: '\(notification.message)' and a newControlByte")
+        Logger.notification.debug("BinarySprayAndWaitNotificationManager attempts to sendNotification \(notification.description) with a newControlByte")
         var newControlByte: ControlByte!
         do {
             newControlByte = try ControlByte(protocolValue: notification.protocolValue, destinationControlValue: notification.destinationControlValue, sequenceNumberValue: notification.sequenceNumberValue/2)

@@ -35,12 +35,6 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         Logger.central.trace("CentralManagerDelegate initialized")
     }
     
-    deinit {
-        Logger.peripheral.trace("CentralManagerDelegate deinitializes")
-        centralManager.stopScan()
-        if peripheral != nil { centralManager.cancelPeripheralConnection(peripheral!) }
-    }
-    
     // MARK: public methods
         
     func scan() {

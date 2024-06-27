@@ -114,7 +114,7 @@ struct ContentView: View {
 struct AutoView: View {
     
     unowned var notificationManager: NotificationManager!
-    @State private var isRunning: Bool = false
+    @State private var simulator: Simulator?
     @State private var runID: Int = 0
     @State private var isSending: Bool = false
     @State private var frequency: Int = 2
@@ -149,19 +149,19 @@ struct AutoView: View {
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                 .disabled(!isSending)
             Button(action: {
-                if !isRunning {
-                    isRunning = true
-                    Simulator.start(with: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), variance: UInt(variance))
+                if simulator == nil || !simulator!.isRunning {
+                    simulator = Simulator(notificationManager: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), variance: UInt(variance))
+                    simulator!.start()
                 } else {
-                    isRunning = false
-                    Simulator.stop(with: notificationManager)
+                    simulator!.stop()
+                    simulator = nil
                 }
             }) {
-                Text(!isRunning ? "Start" : "Stop")
+                Text(simulator == nil || !simulator!.isRunning ? "Start" : "Stop")
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
                     .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .background(isRunning ? Color("bleepPrimary") : Color("bleepSecondary"))
+                    .background(simulator == nil || !simulator!.isRunning ? Color("bleepSecondary") : Color("bleepPrimary"))
                     .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                     .cornerRadius(Dimensions.cornerRadius)
             }
@@ -197,7 +197,7 @@ struct ManualView: View {
         withAnimation { textEditorHeight = newHeight }
     }
     
-    private func sendMessage() { // TODO: rename
+    private func sendMessage() {
         if !draft.isEmpty && destinationAddress != nil {
             Logger.view.info("View attempts to \(#function)")
             let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)

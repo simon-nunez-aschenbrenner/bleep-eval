@@ -36,12 +36,6 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.trace("PeripheralManagerDelegate initialized")
     }
     
-    deinit {
-        Logger.peripheral.trace("PeripheralManagerDelegate deinitializes")
-        peripheralManager.stopAdvertising()
-        peripheralManager.removeAllServices()
-    }
-    
     // MARK: public methods
     
     func advertise() {

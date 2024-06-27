@@ -9,29 +9,64 @@ import Foundation
 import OSLog
 import UIKit
 
-struct Simulator {
+@Observable
+class Simulator {
     
-    static var isRunning = false
+    static let minMessageLength = 77
     
-    static func start(with notificationManager: NotificationManager, runID: UInt, isSending: Bool, frequency: UInt = 0, variance: UInt = 0) {
-        Simulator.isRunning = true
-        notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID)
-        Logger.evaluation.info("Simulator attempts to start(runID=\(runID), isSending=\(isSending),\(isSending ? " frequency=\(frequency)s, variance=±\(variance*25)%" : ""))")
-        let destinations = Utils.addressBook.filter({ $0 != notificationManager.address })
-        while Simulator.isRunning && isSending {// TODO: make non blocking!
-            let destinationAddress = destinations.randomElement()!
-            let message = Utils.generateText(with: Int.random(in: 77...notificationManager.maxMessageLength))
-            let notification = notificationManager.create(destinationAddress: destinationAddress, message: message)
-            notificationManager.insert(notification)
-            notificationManager.save()
-            sleep(UInt32(frequency+UInt(Float(frequency)*Float.random(in: Float(-Int(variance))/4...Float(variance)/4))))
+    unowned var notificationManager: NotificationManager
+    let runID: UInt
+    let isSending: Bool
+    let frequency: UInt
+    let variance: UInt
+    let destinations: [Address]
+    var isRunning: Bool
+    
+    private var timer: DispatchSourceTimer?
+    
+    init(notificationManager: NotificationManager, runID: UInt, isSending: Bool, frequency: UInt = 0, variance: UInt = 0) {
+        Logger.evaluation.trace("Simulator initializes")
+        self.notificationManager = notificationManager
+        self.runID = runID
+        self.isSending = isSending
+        self.frequency = frequency
+        self.variance = variance
+        self.destinations = Utils.addressBook.filter({ $0 != notificationManager.address })
+        self.isRunning = false
+        Logger.evaluation.debug("Simulator initialized with runID=\(runID), isSending=\(isSending),\(isSending ? " frequency=\(frequency)s, variance=±\(variance*25)%" : "")")
+    }
+    
+    func start() {
+        Logger.evaluation.trace("Simulator attempts to \(#function)")
+        stop()
+        self.notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID)
+        self.isRunning = true
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+        self.timer = timer
+        schedule(timer)
+        timer.resume()
+    }
+    
+    private func schedule(_ timer: DispatchSourceTimer) {
+        Logger.evaluation.trace("Simulator attempts to \(#function)")
+        let frequency = Double(self.frequency)
+        let variance = Double(self.variance)
+        let interval = frequency * Double.random(in: 1-variance/4...1+variance/4)
+        timer.schedule(deadline: .now() + interval)
+        timer.setEventHandler {
+            let notification = self.notificationManager.create(destinationAddress: self.destinations.randomElement()!, message: Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)))
+            self.notificationManager.insert(notification)
+            self.notificationManager.save()
+            self.schedule(timer)
         }
     }
     
-    static func stop(with notificationManager: NotificationManager) {
-        Logger.evaluation.info("Simulator attempts to stop")
-        Simulator.isRunning = false
-        notificationManager.evaluationLogger = nil
+    func stop() {
+        Logger.evaluation.trace("Simulator attempts to \(#function)")
+        self.timer?.cancel()
+        self.timer = nil
+        self.notificationManager.evaluationLogger = nil
+        self.isRunning = false
     }
     
 }
@@ -55,7 +90,7 @@ class EvaluationLogger {
         // log entry format:
         // deviceName;runID;status;currentAddress;currentTimestamp;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength\n
         let currentTimestamp = Date.now
-        Logger.evaluation.trace("EvaluationLogger attempts to log #\(Utils.printID(notification.hashedID)) at (\(Utils.printID(address.hashed)))")
+        Logger.evaluation.trace("EvaluationLogger attempts to log notification #\(Utils.printID(notification.hashedID)) at (\(Utils.printID(address.hashed)))")
         var stringBuilder: [String] = []
         // Data provided by the device
         stringBuilder.append(self.deviceName)

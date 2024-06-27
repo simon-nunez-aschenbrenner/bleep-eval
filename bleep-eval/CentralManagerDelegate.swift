@@ -5,8 +5,8 @@
 //  Created by Simon Núñez Aschenbrenner on 07.05.24.
 //
 
-import Foundation
 import CoreBluetooth
+import Foundation
 import OSLog
 
 @Observable

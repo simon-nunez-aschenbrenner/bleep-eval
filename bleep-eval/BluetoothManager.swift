@@ -5,22 +5,20 @@
 //  Created by Simon Núñez Aschenbrenner on 10.05.24.
 //
 
-import Foundation
 import CoreBluetooth
 import CryptoKit
+import Foundation
 import OSLog
 
-// MARK: ConnectionManager protocol
+// MARK: ConnectionManager
 
 enum ConnectionManagerMode: Int, CustomStringConvertible {
     case consumer = -1
     case undefined = 0
     case provider = 1
-    
     var isConsumer: Bool { return !(self.rawValue > -1) }
     var isUndefined: Bool { return self.rawValue == 0 }
     var isProvider: Bool { return !(self.rawValue < 1) }
-    
     var description: String {
         switch self {
         case .consumer: return "Consumer"
@@ -28,33 +26,33 @@ enum ConnectionManagerMode: Int, CustomStringConvertible {
         case .provider:  return "Provider"
         }
     }
-    
 }
 
 protocol ConnectionManager {
-    
     var notificationManager: NotificationManager! { get }
     var mode: ConnectionManagerMode! { get }
-
     init(notificationManager: NotificationManager)
-    
     func setMode(to mode: ConnectionManagerMode)
     func send(notification data: Data) -> Bool
     func acknowledge(hashedID data: Data)
     func disconnect()
-    
 }
 
-// MARK: BluetoothManager class
+// MARK: BluetoothManager
+
+struct BluetoothConstants {
+    static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
+    static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
+    static let notificationAcknowledgementUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
+    static let centralIdentifierKey = "com.simon.bleep-eval.central"
+    static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
+}
 
 @Observable
 class BluetoothManager: NSObject, ConnectionManager {
-
     unowned var notificationManager: NotificationManager!
-    
     private var peripheralManagerDelegate: PeripheralManagerDelegate? // Provider
     private var centralManagerDelegate: CentralManagerDelegate? // Consumer
-    
     private(set) var mode: ConnectionManagerMode! {
         didSet {
             Logger.bluetooth.info("BluetoothManager set mode to '\(self.mode)'")
@@ -132,5 +130,4 @@ class BluetoothManager: NSObject, ConnectionManager {
         }
         centralManagerDelegate!.centralManager.cancelPeripheralConnection(peripheral)
     }
-    
 }

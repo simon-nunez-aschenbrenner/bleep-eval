@@ -9,6 +9,7 @@ import Foundation
 import CryptoKit
 import OSLog
 import SwiftData
+import UIKit
 
 @Model
 class Address: Equatable, CustomStringConvertible {
@@ -33,6 +34,7 @@ class Address: Equatable, CustomStringConvertible {
     init() {
         self.rawValue = UInt64.random(in: minAddressRawValue...UInt64.max)
         self.isOwn = true
+        self.name = UIDevice.current.name // TODO: wrong!
         Logger.notification.trace("Random address initialized: \(self.description)")
     }
     

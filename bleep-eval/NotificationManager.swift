@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import SwiftData
 import OSLog
+import SwiftData
 
 // MARK: NotificationManager protocol
 
@@ -22,7 +22,6 @@ protocol NotificationManager: AnyObject {
     var isIdling: Bool! { get }
             
     func decide()
-    func reset() // TODO: delete
 
 //    TODO: delete
 //    func startTimeoutToDisconnectFromProvider()
@@ -137,18 +136,6 @@ class Epidemic: NotificationManager {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         connectionManager.setMode(to: .undefined)
 //        !isIdling ? connectionManager.setMode(to: .undefined) : Logger.notification.trace("NotificationManager is already idling")
-    }
-    
-    // TODO: delete
-    final func reset() {
-        Logger.notification.trace("NotificationManager attempts to \(#function) itself")
-        resetContext(notifications: true)
-        updateIdentifier()
-        inbox.removeAll()
-        receivedHashedIDs.removeAll()
-        sendQueue.removeAll()
-        acknowledgedHashedIDs.removeAll()
-        idle()
     }
 
 //    TODO: delete timeout methods
@@ -313,7 +300,7 @@ class Epidemic: NotificationManager {
     // MARK: creation methods
     
     func create(destinationAddress: Address, message: String) -> Notification {
-        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 2, sequenceNumberValue: 0)
+        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 1, sequenceNumberValue: 0)
         return Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message)
     }
     
@@ -359,11 +346,11 @@ class Epidemic: NotificationManager {
     
     final func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(printID(notification.hashedID)) with message '\(notification.message)'")
-        if notification.hashedDestinationAddress == self.address.hashed {
-            // TODO: In the future we may want to handle the notification as any other and resend it to obfuscate it was meant for us
+        if notification.hashedDestinationAddress == self.address.hashed { // TODO: In the future we may want to handle the notification as any other and resend it to obfuscate it was meant for us
             try! notification.setDestinationControl(to: 0)
             Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(printID(notification.hashedID)) because its hashedDestinationAddress matches the hashed notificationManager address")
         }
+        EvaluationLogger.instance.log(notification, at: self.address)
         context.insert(notification)
         updateIdentifier()
         updateInbox(with: notification) // TODO: should maybe be called directly by the caller?

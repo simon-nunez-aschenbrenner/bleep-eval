@@ -27,7 +27,9 @@ struct Utils {
     
     static let addressBook: [Address] = [
         Address("XVQ6uh5nTLN", name: "Simon")!,
-        Address("3NHph2xbJS4", name: "A")!
+        Address("3NHph2xbJS4", name: "A")!,
+        Address("36BP1FRmt8N", name: "B")!,
+        Address("Mm79DuurhxB", name: "D")!
     ]
 
     static let suffixLength: Int = 5

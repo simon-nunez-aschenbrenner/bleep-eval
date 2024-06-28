@@ -15,14 +15,14 @@ import OSLog
 protocol ConnectionManager {
     
     var maxNotificationLength: Int! { get }
-    var notificationManager: NotificationManager! { get }
     
     init(notificationManager: NotificationManager)
     
-    func advertise()
+    func advertise(with randomIdentifier: String?)
     func send(notification data: Data) -> Bool
     func acknowledge(hashedID data: Data)
     func disconnect()
+    
 }
 
 // MARK: BluetoothManager
@@ -41,20 +41,22 @@ class BluetoothManager: ConnectionManager {
         case BluetoothManager.serviceUUID.uuidString:
             return "Bleep Notification Service"
         case BluetoothManager.notificationSourceUUID.uuidString:
-            return "Notification Source Characteristic"
+            return "Bleep Notification Source Characteristic"
         case BluetoothManager.notificationAcknowledgementUUID.uuidString:
-            return "Notification Acknowledgement Characteristic"
+            return "Bleep Notification Acknowledgement Characteristic"
         default:
-            return "\(cbuuid.uuidString)"
+            return cbuuid.uuidString
         }
     }
     
     let maxNotificationLength: Int! = 524
     
-    unowned var notificationManager: NotificationManager!
+    unowned let notificationManager: NotificationManager
+    private(set) var randomIdentifier: String = "bleeper"
+    private(set) var recentRandomIdentifiers: Set<String> = []
     private var peripheralManagerDelegate: PeripheralManagerDelegate! // Provider
     private var centralManagerDelegate: CentralManagerDelegate! // Consumer
-    
+        
     required init(notificationManager: NotificationManager) {
         Logger.bluetooth.trace("BluetoothManager initializes")
         self.notificationManager = notificationManager
@@ -63,23 +65,31 @@ class BluetoothManager: ConnectionManager {
         Logger.bluetooth.trace("BluetoothManager initialized")
     }
     
-    func advertise() {
+    func advertise(with randomIdentifier: String? = nil) {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
+        if randomIdentifier != nil {
+            self.randomIdentifier = randomIdentifier!
+            Logger.bluetooth.trace("BluetoothManager set its randomIdentifier to '\(self.randomIdentifier)'")
+        }
         peripheralManagerDelegate.advertise()
+    }
+    
+    func add(randomIdentifier: String) {
+        recentRandomIdentifiers.insert(randomIdentifier)
     }
     
     func send(notification data: Data) -> Bool {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate!.notificationSource, onSubscribedCentrals: nil)
+        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
     func acknowledge(hashedID data: Data) {
         Logger.bluetooth.debug("BluetoothManager attempts to \(#function) #\(Utils.printID(data))")
-        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
+        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: throw
             Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
             return
         }
-        guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: handle
+        guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: throw
             Logger.bluetooth.error("BluetoothManager can't \(#function) because the centralManagerDelegate notificationAcknowledgement characteristic property is nil")
             return
         }
@@ -88,7 +98,7 @@ class BluetoothManager: ConnectionManager {
     
     func disconnect() {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: handle
+        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: throw
             Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
             return
         }

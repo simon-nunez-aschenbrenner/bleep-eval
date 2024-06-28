@@ -22,9 +22,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     var peripheral: CBPeripheral? // TODO: multiple peripherals
     var notificationAcknowledgement: CBCharacteristic?
-    
-    var recentIdentifiers: [String] = [] // TODO: should be property of the connectionManager
-    
+        
     // MARK: initializing methods
             
     init(notificationManager: NotificationManager, bluetoothManager: BluetoothManager) {
@@ -38,16 +36,16 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     // MARK: public methods
         
     func scan() {
-        Logger.central.debug("Central may attempt to \(#function): \(self.centralManager.state == .poweredOn ? "poweredOn" : "!poweredOn") \(self.centralManager.isScanning ? "isScanning" : "!isScanning")")
-        if centralManager.state == .poweredOn {
-            if centralManager.isScanning { centralManager.stopScan() }
-            centralManager.registerForConnectionEvents() // TODO: needed?
-            Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(BluetoothManager.getName(of: self.serviceUUID))'")
-            centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-            centralManager.isScanning ? Logger.central.info("Central started scanning") : Logger.central.warning("Central did not start scanning") // TODO: handle?
-        } else { // TODO: handle?
+        Logger.central.debug("Central may attempt to \(#function): peripheral=\(self.peripheral == nil ? "nil" : "!nil"), \(self.centralManager.state == .poweredOn ? "poweredOn" : "!poweredOn"), \(self.centralManager.isScanning ? "isScanning" : "!isScanning")")
+        guard peripheral == nil && centralManager.state == .poweredOn else {
             Logger.central.warning("Central won't attempt to \(#function)")
+            return
         }
+        if centralManager.isScanning { centralManager.stopScan() } // TODO: needed?
+        notificationManager = nil
+        Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(BluetoothManager.getName(of: self.serviceUUID))'")
+        centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+        centralManager.isScanning ? Logger.central.info("Central started scanning") : Logger.central.error("Central did not start scanning") // TODO: throw
     }
     
     // MARK: delegate methods
@@ -81,19 +79,18 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         Logger.central.info("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(RSSI.intValue)) and attempts to connect to it")
-        guard let identifier = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
-            Logger.central.error("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as did not advertise an identifier")
+        guard let randomIdentifier = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
+            Logger.central.error("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as did not advertise an randomIdentifier")
             return
         }
-        guard !recentIdentifiers.contains(identifier) else {
-            Logger.central.warning("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as it has been connected recently")
+        guard !bluetoothManager.recentRandomIdentifiers.contains(randomIdentifier) else {
+            Logger.central.warning("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' with randomIdentifier '\(randomIdentifier)' as it has been connected recently")
             return
         }
-        Logger.central.debug("Central appends identifier '\(identifier)' of peripheral '\(Utils.printID(peripheral.identifier.uuidString)) to the recentIdentifiers array")
-        recentIdentifiers.append(identifier)
+        Logger.central.debug("Central appends randomIdentifier '\(randomIdentifier)' of peripheral '\(Utils.printID(peripheral.identifier.uuidString)) to the recentIdentifiers array")
+        bluetoothManager.add(randomIdentifier: randomIdentifier)
         self.peripheral = peripheral
         peripheral.delegate = self
-        notificationAcknowledgement = nil
         centralManager.connect(peripheral, options: nil)
     }
     
@@ -103,127 +100,121 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        Logger.central.warning("Central didFailToConnect to peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error?.localizedDescription ?? "")'")
-//        notificationManager.decide()
+        Logger.central.error("Central didFailToConnect to peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error?.localizedDescription ?? "")'")
+        self.peripheral = nil
+        scan()
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: (any Error)?) {
-        if (error != nil) { // TODO: handle
+        guard error == nil else { // TODO: handle
             Logger.central.error("Central did not didDiscoverServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-        } else {
-            Logger.central.debug("Central didDiscoverServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' and may attempt to discoverCharacteristics")
-            guard let discoveredServices = peripheral.services else { // TODO: handle
-                Logger.central.fault("Central can't discoverCharacteristics, because the services array of peripheral '\(Utils.printID(peripheral.identifier.uuidString))' is nil")
-                return
-            }
-            var discoveredService = false
-            for service in discoveredServices {
-                Logger.central.trace("Central discovered '\(BluetoothManager.getName(of: service.uuid))'")
-                if service.uuid.uuidString == self.serviceUUID.uuidString {
-                    Logger.central.trace("Central attempts to discoverCharacteristics")
-                    discoveredService = true
-                    peripheral.discoverCharacteristics(nil, for: service)
-                }
-            }
-            if !discoveredService { // TODO: handle
-                Logger.central.error("Central can't discoverCharacteristics, because it did not discover '\(BluetoothManager.getName(of: self.serviceUUID))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
-//                centralManager.cancelPeripheralConnection(peripheral)
-            }
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
         }
+        Logger.central.debug("Central didDiscoverServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' and may attempt to discoverCharacteristics")
+        guard let discoveredServices = peripheral.services else { // TODO: handle
+            Logger.central.error("Central can't discoverCharacteristics, because the services array of peripheral '\(Utils.printID(peripheral.identifier.uuidString))' is nil")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        for service in discoveredServices {
+            guard service.uuid.uuidString == self.serviceUUID.uuidString else {
+                Logger.central.trace("Central discovered unknown service '\(BluetoothManager.getName(of: service.uuid))' and will ignore it")
+                continue
+            }
+            Logger.central.trace("Central discovered '\(BluetoothManager.getName(of: service.uuid))' and attempts to discoverCharacteristics")
+            peripheral.discoverCharacteristics(nil, for: service)
+            return
+        }
+        Logger.central.error("Central can't discoverCharacteristics, because it did not discover '\(BluetoothManager.getName(of: self.serviceUUID))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        centralManager.cancelPeripheralConnection(peripheral)
     }
     
-    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) { // TODO: handle
-        Logger.central.error("\(#function) invalidatedServices: \(invalidatedServices)")
+    func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
+        Logger.central.error("\(#function): \(invalidatedServices)")
         centralManager.cancelPeripheralConnection(peripheral)
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        if (error != nil) { // TODO: handle
+        guard error == nil else { // TODO: handle
             Logger.central.error("Central did not discoverCharacteristicsFor '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-        } else {
-            Logger.central.debug("Central didDiscoverCharacteristicsFor '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' and may attempt to setNotifyValue")
-            guard let discoveredCharacteristics = service.characteristics else { // TODO: handle
-                Logger.central.fault("Central can't setNotifyValue because the characteristics array for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString)) is nil")
-                return
-            }
-            var discoveredNotificationSourceCharacteristic = false
-            for characteristic in discoveredCharacteristics {
-                Logger.central.trace("Central discovered '\(BluetoothManager.getName(of: characteristic.uuid))'")
-                if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
-                    Logger.central.debug("Central attempts to setNotifyValue for '\(BluetoothManager.getName(of: characteristic.uuid))'")
-                    discoveredNotificationSourceCharacteristic = true
-                    peripheral.setNotifyValue(true, for: characteristic)
-                } else if characteristic.uuid.uuidString == self.notificationAcknowledgementUUID.uuidString {
-                    self.notificationAcknowledgement = characteristic
-                    Logger.central.debug("Central added '\(BluetoothManager.getName(of: characteristic.uuid))'")
-                }
-            }
-            if self.notificationAcknowledgement == nil { // TODO: handle
-                Logger.central.warning("Central did not discover '\(BluetoothManager.getName(of: self.notificationAcknowledgementUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
-            }
-            if !discoveredNotificationSourceCharacteristic { // TODO: handle
-                Logger.central.error("Central can't attempt to setNotifyValue, because it did not discover '\(BluetoothManager.getName(of: self.notificationSourceUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
-//                centralManager.cancelPeripheralConnection(peripheral)
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        Logger.central.debug("Central didDiscoverCharacteristicsFor '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' and may attempt to setNotifyValue")
+        guard let discoveredCharacteristics = service.characteristics else { // TODO: handle
+            Logger.central.error("Central can't setNotifyValue because the characteristics array for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString)) is nil")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        var discoveredNotificationSourceCharacteristic = false
+        for characteristic in discoveredCharacteristics {
+            Logger.central.trace("Central discovered '\(BluetoothManager.getName(of: characteristic.uuid))'")
+            if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
+                Logger.central.debug("Central attempts to setNotifyValue for '\(BluetoothManager.getName(of: characteristic.uuid))'")
+                discoveredNotificationSourceCharacteristic = true
+                peripheral.setNotifyValue(true, for: characteristic)
+            } else if characteristic.uuid.uuidString == self.notificationAcknowledgementUUID.uuidString {
+                self.notificationAcknowledgement = characteristic
+                Logger.central.debug("Central added '\(BluetoothManager.getName(of: characteristic.uuid))'")
             } else {
-                Logger.central.info("Central successfully subscribed to '\(BluetoothManager.getName(of: self.notificationSourceUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+                Logger.central.trace("Central discovered unknown characteristic '\(BluetoothManager.getName(of: characteristic.uuid))' and will ignore it")
+                continue
             }
         }
+        if self.notificationAcknowledgement == nil { // TODO: handle
+            Logger.central.warning("Central did not discover '\(BluetoothManager.getName(of: self.notificationAcknowledgementUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        }
+        guard discoveredNotificationSourceCharacteristic else { // TODO: handle
+            Logger.central.error("Central can't setNotifyValue, because it did not discover '\(BluetoothManager.getName(of: self.notificationSourceUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        Logger.central.info("Central successfully subscribed to '\(BluetoothManager.getName(of: self.notificationSourceUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if (error != nil) { // TODO: handle
-            Logger.central.error("Central did not receive UpdateValueFor '\(BluetoothManager.getName(of: characteristic.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-        } else {
-            guard let data = characteristic.value else { // TODO: handle
-                Logger.central.error("Central can't receiveNotification(data:) from peripheral '\(Utils.printID(peripheral.identifier.uuidString)), because the value property of '\(BluetoothManager.getName(of: characteristic.uuid))' is nil")
-                return
-            }
-            Logger.central.debug("Central did receive UpdateValueFor '\(BluetoothManager.getName(of: characteristic.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' with \(data.count-self.notificationManager.minNotificationLength)+\(self.notificationManager.minNotificationLength)=\(data.count) bytes and will attempt to receiveNotification(data:)")
-            if characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString {
-                notificationManager.receiveNotification(data: data)
-            } else {
-                Logger.central.warning("Central did receive UpdateValueFor unknown characteristic \(BluetoothManager.getName(of: characteristic.uuid))")
-            }
+        guard error == nil else { // TODO: handle
+            Logger.central.error("Central did not receive updateValueFor '\(BluetoothManager.getName(of: characteristic.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
         }
+        guard characteristic.uuid.uuidString == self.notificationSourceUUID.uuidString else {
+            Logger.central.warning("Central did receive updateValueFor unknown characteristic \(BluetoothManager.getName(of: characteristic.uuid)) on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' and will ignore it")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        guard let data = characteristic.value else { // TODO: handle
+            Logger.central.error("Central can't process updateValue on peripheral '\(Utils.printID(peripheral.identifier.uuidString)), because the value property of '\(BluetoothManager.getName(of: characteristic.uuid))' is nil and will ignore it")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
+        }
+        Logger.central.debug("Central did receive updateValueFor '\(BluetoothManager.getName(of: characteristic.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        notificationManager.receiveNotification(data: data)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        if (error != nil) { // TODO: handle
+        guard error == nil else { // TODO: handle
             Logger.central.error("Central did not receive UpdateNotificationStateFor '\(BluetoothManager.getName(of: characteristic.uuid))': '\(error!.localizedDescription)' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
-        } else {
-            Logger.central.debug("Central did receive UpdateNotificationStateFor '\(BluetoothManager.getName(of: characteristic.uuid))' to \(characteristic.isNotifying) on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
         }
+        Logger.central.debug("Central did receive UpdateNotificationStateFor '\(BluetoothManager.getName(of: characteristic.uuid))' to \(characteristic.isNotifying) on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, timestamp: CFAbsoluteTime, isReconnecting: Bool, error: (any Error)?) {
-        if (error != nil) { // TODO: handle
+        guard error == nil else { // TODO: handle
             Logger.central.error("Central did not disconnectPeripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error!.localizedDescription)'")
-        } else {
-            Logger.central.info("Central didDisconnectPeripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
-            isReconnecting ? Logger.central.warning("Central isReconnecting to peripheral '\(Utils.printID(peripheral.identifier.uuidString))'") : scan()
+            centralManager.cancelPeripheralConnection(peripheral)
+            return
         }
+        guard !isReconnecting else { // TODO: handle
+            Logger.central.warning("Central isReconnecting to peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+            return
+        }
+        Logger.central.info("Central didDisconnectPeripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        self.peripheral = nil
+        scan()
     }
-    
-    func centralManager(_ central: CBCentralManager, connectionEventDidOccur event: CBConnectionEvent, for peripheral: CBPeripheral) {
-        Logger.central.info("\(#function) peripheral '\(Utils.printID(peripheral.identifier.uuidString)): \(event.description)'")
-//        switch event {
-//        case .peerDisconnected:
-//            notificationManager.decide()
-//        case .peerConnected:
-//            return
-//        @unknown default:
-//            return
-//        }
-    }
-}
 
-extension CBConnectionEvent: CustomStringConvertible {
-    
-    public var description: String {
-        switch self {
-        case .peerConnected: return "connected"
-        case .peerDisconnected: return "disconnected"
-        @unknown default: return "connectionEvent unknown"
-        }
-    }
 }

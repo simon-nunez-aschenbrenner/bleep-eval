@@ -202,7 +202,6 @@ struct ManualView: View {
             Logger.view.info("View attempts to \(#function)")
             let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
             notificationManager.insert(notification)
-            notificationManager.save()
             draft.removeAll()
         }
     }

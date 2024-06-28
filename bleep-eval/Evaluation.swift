@@ -56,7 +56,6 @@ class Simulator {
         timer.setEventHandler {
             let notification = self.notificationManager.create(destinationAddress: self.destinations.randomElement()!, message: Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)))
             self.notificationManager.insert(notification)
-            self.notificationManager.save()
             self.schedule(timer)
         }
     }

@@ -12,7 +12,7 @@ import SwiftData
 import UIKit
 
 @Model
-class Address: Equatable, CustomStringConvertible {
+class Address: CustomStringConvertible, Equatable {
     
     static let base58Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
     static let minRawValue: UInt64 = 1 // 0 reserved for Broadcast

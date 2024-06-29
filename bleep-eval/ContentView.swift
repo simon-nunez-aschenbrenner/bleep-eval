@@ -116,45 +116,93 @@ struct AutoView: View {
     unowned var notificationManager: NotificationManager!
     @State private var simulator: Simulator?
     @State private var runID: Int = 0
+    @State private var rssiThreshold: Int = -8
     @State private var isSending: Bool = false
-    @State private var frequency: Int = 2
-    @State private var variance: Int = 1
+    @State private var frequency: Int = 4
+    @State private var variance: Int = 2
+    @State private var destinations: Set<Address>
+    private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
     init(_ notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
+        self.destinations = Set(notificationManager.contacts)
     }
     
     var body: some View {
         
-        // MARK: Simulation parameters
+        // MARK: Destinations
+        
+        LazyVGrid(columns: columns) {
+            ForEach(notificationManager.contacts) { address in
+                Button(action: {
+                    if destinations.contains(address) {
+                        destinations.remove(address)
+                    } else {
+                        destinations.insert(address)
+                    }
+                }) {
+                    Text(address.name ?? address.base58Encoded)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .background(destinations.contains(address) ? Color("bleepPrimary") : Color("bleepSecondary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(Dimensions.cornerRadius)
+                }
+                .disabled(simulator?.isRunning ?? false)
+            }
+        }
+        .padding(.horizontal)
+        
+        // MARK: Simulation
         
         List {
+            
             Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
                 .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                 .foregroundColor(Color("bleepPrimary"))
+                .listRowSeparator(.hidden)
+                .disabled(simulator?.isRunning ?? false)
+            
+            Stepper("RSSI threshold: \(rssiThreshold * 8)", value: $rssiThreshold, in: -16...0)
+                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                .foregroundColor(Color("bleepPrimary"))
+                .listRowSeparator(.hidden)
+                .disabled(simulator?.isRunning ?? false)
+            
             HStack {
-                Text("Send and receive")
+                Text(isSending ? "Send and receive" : "Receive only")
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
                 Toggle("", isOn: $isSending)
                     .padding(.trailing, Dimensions.largePadding)
                     .tint(Color("bleepPrimary"))
+                    .disabled(simulator?.isRunning ?? false)
             }
-            Stepper("Send every \(frequency) seconds", value: $frequency, in: 2...Int.max)
+            .listRowSeparator(.hidden)
+            
+            Stepper("Send every \(frequency) seconds", value: $frequency, in: 1...60)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                 .disabled(!isSending)
-            Stepper("with ±\(variance*25)% variance", value: $variance, in: 0...4)
+                .listRowSeparator(.hidden)
+                .disabled(simulator?.isRunning ?? false)
+            
+            Stepper("with ±\(variance * 25)% variance", value: $variance, in: 0...4)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
-                .disabled(!isSending)
+                .disabled(!isSending || simulator?.isRunning ?? false)
+                .listRowSeparator(.hidden)
+                .disabled(simulator?.isRunning ?? false)
+            
             Button(action: {
                 if simulator == nil || !simulator!.isRunning {
-                    simulator = Simulator(notificationManager: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), variance: UInt(variance))
-                    simulator!.start()
+                    Logger.view.trace("View attempts to start a new simulation")
+                    simulator = Simulator(notificationManager: notificationManager, runID: UInt(runID), rssiThreshold: rssiThreshold, isSending: isSending, frequency: UInt(frequency), variance: UInt(variance), destinations: destinations)
+                    simulator!.start(clearExistingLog: true) // TODO: SET TO FALSE
                 } else {
+                    Logger.view.trace("View attempts to stop the simulation")
                     simulator!.stop()
-                    simulator = nil
                 }
             }) {
                 Text(simulator == nil || !simulator!.isRunning ? "Start" : "Stop")
@@ -165,9 +213,31 @@ struct AutoView: View {
                     .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
                     .cornerRadius(Dimensions.cornerRadius)
             }
-            Text("Received \(notificationManager.inbox.count) notifications")
-                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+            .listRowSeparator(.hidden)
+            
+            HStack {
+                Spacer()
+                Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                Spacer()
+            }
+            .listRowSeparator(.hidden)
+            
+            if let logFileURL = simulator?.logFileURL {
+                ShareLink(item: logFileURL, preview: SharePreview(logFileURL.lastPathComponent, image: Image(systemName: "doc.text"))) {
+                    Text("Share log file")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .background(Color("bleepPrimary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(Dimensions.cornerRadius)
+                }
+                .listRowSeparator(.hidden)
+            }
         }
+        .listStyle(.plain)
         .scrollDisabled(true)
     }
 }
@@ -215,7 +285,7 @@ struct ManualView: View {
         // MARK: Destinations
         
         LazyVGrid(columns: columns) {
-            ForEach(Utils.addressBook) { address in
+            ForEach(notificationManager.contacts) { address in
                 Button(action: {
                     if destinationAddress == address {
                         destinationAddress = nil
@@ -290,11 +360,10 @@ struct ManualView: View {
         // MARK: Notifications
         
         VStack(alignment: .center) {
-            Text("Received \(notificationManager.inbox.count) notifications")
+            Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
                 .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                .underline()
                 .padding(.horizontal)
-            List(notificationManager.inbox) { notification in
+            List(notificationManager.inbox.sorted(by: >)) { notification in
                 NotificationView(notification: notification)
             }
             Spacer()

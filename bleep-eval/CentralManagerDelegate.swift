@@ -42,7 +42,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             return
         }
         if centralManager.isScanning { centralManager.stopScan() } // TODO: needed?
-        notificationManager = nil
+        notificationAcknowledgement = nil
         Logger.central.debug("Central attempts to \(#function) for peripherals with service '\(BluetoothManager.getName(of: self.serviceUUID))'")
         centralManager.scanForPeripherals(withServices: [self.serviceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         centralManager.isScanning ? Logger.central.info("Central started scanning") : Logger.central.error("Central did not start scanning") // TODO: throw
@@ -78,7 +78,11 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        Logger.central.info("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(RSSI.intValue)) and attempts to connect to it")
+        Logger.central.info("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(Int8(RSSI.int8Value))) and attempts to connect to it")
+        guard Int8(RSSI.int8Value) > notificationManager.rssiThreshold else {
+            Logger.central.warning("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as the RSSI \(Int8(RSSI.int8Value)) is below the threshold RSSI \(self.notificationManager.rssiThreshold)")
+            return
+        }
         guard let randomIdentifier = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
             Logger.central.error("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as did not advertise an randomIdentifier")
             return

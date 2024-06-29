@@ -14,44 +14,50 @@ class Simulator {
     
     static let minMessageLength = 77
     
-    unowned var notificationManager: NotificationManager
-    let runID: UInt
-    let isSending: Bool
-    let frequency: UInt
-    let variance: UInt
-    let destinations: [Address]
-    var isRunning: Bool
+    unowned private var notificationManager: NotificationManager
+    private let runID: UInt
+    private let rssiThreshold: Int
+    private let isSending: Bool
+    private let frequency: UInt
+    private let variance: UInt
+    private let destinations: Set<Address>
     
+    private(set) var isRunning: Bool
+    private(set) var logFileURL: URL?
     private var timer: DispatchSourceTimer?
     
-    init(notificationManager: NotificationManager, runID: UInt, isSending: Bool, frequency: UInt = 0, variance: UInt = 0) {
+    init(notificationManager: NotificationManager, runID: UInt, rssiThreshold: Int, isSending: Bool, frequency: UInt = 0, variance: UInt = 0, destinations: Set<Address> = []) {
         Logger.evaluation.trace("Simulator initializes")
         self.notificationManager = notificationManager
         self.runID = runID
+        self.rssiThreshold = rssiThreshold * 8
         self.isSending = isSending
         self.frequency = frequency
-        self.variance = variance
-        self.destinations = Utils.addressBook.filter({ $0 != notificationManager.address })
+        self.variance = variance / 4
+        self.destinations = destinations
         self.isRunning = false
-        Logger.evaluation.debug("Simulator initialized with runID=\(runID), isSending=\(isSending),\(isSending ? " frequency=\(frequency)s, variance=±\(variance*25)%" : "")")
+        Logger.evaluation.debug("Simulator initialized with runID=\(runID), rssiThreshold=\(rssiThreshold * 8), isSending=\(isSending),\(isSending ? " frequency=\(frequency)s, variance=±\(variance * 25)%, destinations=\(destinations)" : "")")
     }
     
-    func start() {
-        Logger.evaluation.trace("Simulator attempts to \(#function)")
+    func start(clearExistingLog: Bool = false) {
+        Logger.evaluation.debug("Simulator attempts to \(#function) \(clearExistingLog)")
         stop()
-        self.notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID)
-        self.isRunning = true
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
-        self.timer = timer
-        schedule(timer)
-        timer.resume()
+        logFileURL = nil
+        notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: clearExistingLog)
+        notificationManager.rssiThreshold = Int8(rssiThreshold)
+        isRunning = true
+        if isSending {
+            timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+            schedule(timer!)
+            timer!.resume()
+        }
     }
     
     private func schedule(_ timer: DispatchSourceTimer) {
         Logger.evaluation.trace("Simulator attempts to \(#function)")
         let frequency = Double(self.frequency)
         let variance = Double(self.variance)
-        let interval = frequency * Double.random(in: 1-variance/4...1+variance/4)
+        let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
             let notification = self.notificationManager.create(destinationAddress: self.destinations.randomElement()!, message: Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)))
@@ -62,10 +68,12 @@ class Simulator {
     
     func stop() {
         Logger.evaluation.trace("Simulator attempts to \(#function)")
-        self.timer?.cancel()
-        self.timer = nil
-        self.notificationManager.evaluationLogger = nil
-        self.isRunning = false
+        logFileURL = notificationManager.evaluationLogger?.fileURL
+        timer?.cancel()
+        timer = nil
+        notificationManager.evaluationLogger = nil
+        notificationManager.rssiThreshold = Int8.min
+        isRunning = false
     }
     
 }
@@ -75,31 +83,49 @@ class EvaluationLogger {
     private let deviceName: String!
     private let runID: UInt!
     private let fileManager: FileManager = FileManager.default
-    private var fileURL: URL
+    var fileURL: URL
 
-    init(deviceName: String?, runID: UInt!) {
-        self.deviceName = deviceName ?? "X"
+    init(deviceName: String?, runID: UInt!, clearExistingLog: Bool = false) {
+        Logger.evaluation.debug("EvaluationLogger initializes with runID \(runID)")
+        self.deviceName = deviceName ?? "unknown"
         self.runID = runID
-        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName!).\(String(format: "%03u", self.runID)).log")
-        if !fileManager.fileExists(atPath: fileURL.path) { fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: nil) }
+        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName!).\(String(format: "%02u", self.runID)).csv")
+        if !fileManager.fileExists(atPath: fileURL.path) {
+            fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
+            Logger.evaluation.trace("EvalutaionLogger created a new log file")
+        }
+        else if clearExistingLog {
+            if let fileHandle = try? FileHandle(forWritingTo: fileURL) {
+                do {
+                    try fileHandle.truncate(atOffset: 0)
+                    Logger.evaluation.warning("EvalutaionLogger cleared the existing log for runID \(runID)")
+                } catch {
+                    Logger.evaluation.fault("EvaluationLogger was unable to clear the existing log for runID \(runID)")
+                    }
+                fileHandle.closeFile()
+            } else {
+                Logger.evaluation.fault("EvaluationLogger was unable to clear the existing log for runID \(runID)")
+            }
+            
+        }
         Logger.evaluation.debug("EvaluationLogger initialized with fileURL '\(self.fileURL.path())'")
     }
 
     func log(_ notification: Notification, at address: Address) {
         // log entry format:
-        // deviceName;runID;status;currentAddress;currentTimestamp;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength\n
+        // deviceName;runID;currentAddress;currentTimestamp;status;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength\n
         let currentTimestamp = Date.now
         Logger.evaluation.trace("EvaluationLogger attempts to log notification #\(Utils.printID(notification.hashedID)) at (\(Utils.printID(address.hashed)))")
         var stringBuilder: [String] = []
         // Data provided by the device
         stringBuilder.append(self.deviceName)
         stringBuilder.append(String(self.runID))
+        stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
+        stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
         var status: String = "0" // unknown/in transit
         if notification.receivedTimestamp == nil { status = "1" } // created
         else if notification.destinationControlValue == 0 { status = "2" } // received
         stringBuilder.append(status)
-        stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
-        stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
         stringBuilder.append(String(notification.protocolValue)) // 0 = epidemic, 1 = binary spray and wait, TODO: 2 = ???, 3 = ???

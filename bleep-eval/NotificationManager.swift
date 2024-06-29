@@ -14,8 +14,11 @@ import SwiftData
 protocol NotificationManager: AnyObject {
     
     var evaluationLogger: EvaluationLogger? { get set }
+    var rssiThreshold: Int8! { get set }
+    var receivedHashedIDs: Set<Data>! { get }
         
     var address: Address! { get }
+    var contacts: [Address]! { get }
     var maxMessageLength: Int! { get }
     var inbox: [Notification]! { get }
     
@@ -31,8 +34,9 @@ protocol NotificationManager: AnyObject {
 
 @Observable
 class Epidemic: NotificationManager {
-    
+
     final var evaluationLogger: EvaluationLogger?
+    final var rssiThreshold: Int8! = -128
     
     let protocolValue: UInt8!
     let minNotificationLength: Int! = 105
@@ -40,11 +44,11 @@ class Epidemic: NotificationManager {
     private(set) var maxMessageLength: Int!
     
     final private(set) var address: Address!
+    final private(set) var contacts: [Address]!
     final fileprivate(set) var connectionManager: ConnectionManager!
     final private(set) var inbox: [Notification]! = []
-    final fileprivate var receivedHashedIDs: [Data]! = []
-    final private(set) var sendQueue: [Notification: Bool]! = [:] // Specific for each peer subscription
-    final fileprivate var acknowledgedHashedIDs: [Data]! = []
+    final private(set) var receivedHashedIDs: Set<Data>! = []
+    final private(set) var sendQueue: [Notification: Bool]! = [:]
     
     final private var container: ModelContainer!
     final private var context: ModelContext!
@@ -60,6 +64,7 @@ class Epidemic: NotificationManager {
         self.context.autosaveEnabled = true
         resetContext(notifications: true)
         initAddress()
+        initContacts()
         self.connectionManager = connectionManagerType.init(notificationManager: self)
         self.maxMessageLength = self.connectionManager.maxNotificationLength - self.minNotificationLength
         updateInbox()
@@ -99,16 +104,21 @@ class Epidemic: NotificationManager {
         Logger.notification.debug("NotificationManager address: \(self.address!.description)")
     }
     
+    final private func initContacts() {
+        contacts = Utils.addressBook.filter({ $0 != address })
+        Logger.notification.trace("NotificationManager initialized its contacts: \(self.contacts)")
+    }
+    
     // MARK: receiving methods
     
     final fileprivate func populateReceivedHashedIDsArray() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         let hashedIDs = fetchAllHashedIDs()
         if hashedIDs == nil || hashedIDs!.isEmpty {
-            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs array")
+            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs set")
         } else {
-            receivedHashedIDs = hashedIDs!
-            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs array with \(self.receivedHashedIDs.count) hashedIDs")
+            receivedHashedIDs = Set(hashedIDs!)
+            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs set with \(self.receivedHashedIDs.count) hashedIDs")
         }
     }
     
@@ -142,8 +152,8 @@ class Epidemic: NotificationManager {
             Logger.notification.error("NotificationManager will ignore notification #\(Utils.printID(hashedID)), as its protocolValue \(controlByte.protocolValue) doesn't match the notificationManager protocolValue \(self.protocolValue)")
             return
         }
-        Logger.notification.trace("NotificationManager appends notification #\(Utils.printID(hashedID)) to the receivedHashedIDs array")
-        receivedHashedIDs.append(hashedID)
+        Logger.notification.trace("NotificationManager appends hashedID #\(Utils.printID(hashedID)) to the receivedHashedIDs set")
+        receivedHashedIDs.insert(hashedID)
         receiveNotification(Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message))
     }
     

@@ -16,36 +16,38 @@ class Simulator {
     
     unowned private var notificationManager: NotificationManager
     private let runID: UInt
-    private let rssiThreshold: Int
     private let isSending: Bool
     private let frequency: UInt
-    private let variance: UInt
+    private let variance: Float
     private let destinations: Set<Address>
     
     private(set) var isRunning: Bool
     private(set) var logFileURL: URL?
     private var timer: DispatchSourceTimer?
     
-    init(notificationManager: NotificationManager, runID: UInt, rssiThreshold: Int, isSending: Bool, frequency: UInt = 0, variance: UInt = 0, destinations: Set<Address> = []) {
+    init(notificationManager: NotificationManager, runID: UInt, rssiThresholdFactor: Int8, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, numberOfCopies: UInt8, destinations: Set<Address> = []) {
         Logger.evaluation.trace("Simulator initializes")
+        
+        notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
+        notificationManager.rssiThreshold = Int8(rssiThresholdFactor * 8)
+        try? notificationManager.setNumberOfCopies(to: numberOfCopies)
         self.notificationManager = notificationManager
+        
         self.runID = runID
-        self.rssiThreshold = rssiThreshold * 8
         self.isSending = isSending
         self.frequency = frequency
-        self.variance = variance / 4
+        self.variance = min(Float(varianceFactor), 4.0) * 0.25
         self.destinations = destinations
         self.isRunning = false
-        Logger.evaluation.debug("Simulator initialized with runID=\(runID), rssiThreshold=\(rssiThreshold * 8), isSending=\(isSending),\(isSending ? " frequency=\(frequency)s, variance=±\(variance * 25)%, destinations=\(destinations)" : "")")
+        Logger.evaluation.debug("Simulator initialized with runID=\(runID), rssiThreshold=\(rssiThresholdFactor * 8), isSending=\(isSending)\(isSending ? ", frequency=\(frequency)s, variance=±\(Int(self.variance*100))%, numberOfCopies=\(numberOfCopies), destinations=\(destinations)" : "")")
     }
     
-    func start(clearExistingLog: Bool = false) {
-        Logger.evaluation.debug("Simulator attempts to \(#function) \(clearExistingLog)")
-        stop()
-        logFileURL = nil
-        notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: clearExistingLog)
-        notificationManager.rssiThreshold = Int8(rssiThreshold)
+    func start() {
+        Logger.evaluation.debug("Simulator attempts to \(#function)")
         isRunning = true
+        logFileURL = nil
+        timer?.cancel()
+        timer = nil
         if isSending {
             timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
             schedule(timer!)
@@ -73,6 +75,7 @@ class Simulator {
         timer = nil
         notificationManager.evaluationLogger = nil
         notificationManager.rssiThreshold = Int8.min
+        try! notificationManager.setNumberOfCopies(to: Utils.initialNumberOfCopies)
         isRunning = false
     }
     
@@ -122,9 +125,11 @@ class EvaluationLogger {
         stringBuilder.append(String(self.runID))
         stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
         stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
-        var status: String = "0" // unknown/in transit
+        var status: String = "0" // unknown
         if notification.receivedTimestamp == nil { status = "1" } // created
-        else if notification.destinationControlValue == 0 { status = "2" } // received
+        else if address.hashed == notification.hashedSourceAddress { status = "2" } // forwarded
+        else if address.hashed == notification.hashedDestinationAddress { status = "3" } // received
+        if notification.destinationControlValue == 0 { status = "4" } // arrived
         stringBuilder.append(status)
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID

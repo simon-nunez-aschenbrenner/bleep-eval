@@ -36,6 +36,18 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.trace("PeripheralManagerDelegate initialized")
     }
     
+    deinit {
+        Logger.peripheral.trace("PeripheralManagerDelegate deinitializes")
+        if peripheralManager.state == .poweredOn {
+            peripheralManager.stopAdvertising()
+            peripheralManager.removeAllServices()
+        }
+        peripheralManager.delegate = nil
+        peripheralManager = nil
+        bluetoothManager = nil
+        notificationManager = nil
+    }
+    
     // MARK: public methods
     
     func advertise() {

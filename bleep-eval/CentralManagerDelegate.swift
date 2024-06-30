@@ -33,6 +33,20 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         Logger.central.trace("CentralManagerDelegate initialized")
     }
     
+    deinit {
+        Logger.central.trace("CentralManagerDelegate deinitializes")
+        if centralManager.state == .poweredOn {
+            if let peripheral = self.peripheral {
+                centralManager.cancelPeripheralConnection(peripheral)
+            }
+            centralManager.stopScan()
+        }
+        centralManager.delegate = nil
+        centralManager = nil
+        bluetoothManager = nil
+        notificationManager = nil
+    }
+    
     // MARK: public methods
         
     func scan() {
@@ -105,6 +119,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Logger.central.error("Central didFailToConnect to peripheral '\(Utils.printID(peripheral.identifier.uuidString))': '\(error?.localizedDescription ?? "")'")
+        peripheral.delegate = nil
         self.peripheral = nil
         scan()
     }
@@ -217,6 +232,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             return
         }
         Logger.central.info("Central didDisconnectPeripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        peripheral.delegate = nil
         self.peripheral = nil
         scan()
     }

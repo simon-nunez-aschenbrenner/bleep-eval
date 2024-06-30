@@ -33,6 +33,8 @@ struct Utils {
     ]
 
     static let suffixLength: Int = 5
+    static let initialNumberOfCopies: UInt8 = 15
+    static let initialCountdownTime = 10
     
     static func generateText(with length: Int) -> String {
         let end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210"

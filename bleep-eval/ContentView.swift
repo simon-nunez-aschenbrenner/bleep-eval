@@ -5,6 +5,7 @@
 //  Created by Simon Núñez Aschenbrenner on 03.05.24.
 //
 
+import Combine
 import Foundation
 import OSLog
 import SwiftUI
@@ -41,9 +42,10 @@ struct Dimensions {
     static let textEditorWidthOffset: CGFloat = 2 * lineWidth + 2 * largePadding + mediumPadding + 3 * smallPadding + sendButtonSize
 }
 
-enum NotificationManagerProtocol: String, CaseIterable, Identifiable {
+enum NotificationManagerType: String, CaseIterable, Identifiable {
+    case direct = "Direct"
     case epidemic = "Epidemic"
-    case binarySprayAndWait = "Binary Spray and Wait"
+    case binarySprayAndWait = "Spray and Wait"
     var id: Self { self }
 }
 
@@ -51,17 +53,27 @@ enum NotificationManagerProtocol: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     
-    @State private var notificationManager: NotificationManager = try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)
+    @State private var notificationManager: NotificationManager?
     @State private var showAutoView: Bool = true
-    @State private var notificationManagerProtocol: NotificationManagerProtocol = .binarySprayAndWait
+    @State private var notificationManagerType: NotificationManagerType = .binarySprayAndWait
     
-    func changeProtocol(to proto: NotificationManagerProtocol) {
-        Logger.view.debug("View attempts to \(#function) \(proto.rawValue)")
-        switch proto {
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    
+    init() {
+        self.setNotificationManagerType(to: self.notificationManagerType)
+    }
+    
+    func setNotificationManagerType(to type: NotificationManagerType) {
+        Logger.view.debug("View attempts to \(#function) \(type.rawValue)")
+        notificationManagerType = type
+        notificationManager = nil
+        switch type {
+        case .direct:
+            notificationManager = Direct(connectionManagerType: BluetoothManager.self)
         case .epidemic:
             notificationManager = Epidemic(connectionManagerType: BluetoothManager.self)
         case .binarySprayAndWait:
-            notificationManager = try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15)
+            notificationManager = try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: Utils.initialNumberOfCopies)
         }
     }
     
@@ -79,30 +91,44 @@ struct ContentView: View {
                     .tint(Color("bleepPrimary"))
             }
             
-            // MARK: Status
+            // MARK: Protocol
             
-            Picker("Protocol", selection: $notificationManagerProtocol) {
-                ForEach(NotificationManagerProtocol.allCases) { proto in
-                    Text(proto.rawValue)
+            LazyVGrid(columns: columns) {
+                ForEach(NotificationManagerType.allCases) { type in
+                    Button(action: {
+                        if notificationManagerType != type {
+                            setNotificationManagerType(to: type)
+                        }
+                    }) {
+                        Text(type.rawValue)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                            .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                            .background(type == notificationManagerType ? Color("bleepPrimary") : Color("bleepSecondary"))
+                            .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                            .cornerRadius(Dimensions.cornerRadius)
+                        }
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .padding([.leading, .bottom, .trailing], Dimensions.largePadding)
-            .onChange(of: notificationManagerProtocol, { changeProtocol(to: notificationManagerProtocol) })
+                .padding(.horizontal)
+            
+            // MARK: Status
             
             HStack {
                 Spacer()
-                Text("Address: \(notificationManager.address.description.dropLast(6))")
+                Text("Address: \(notificationManager?.address.description.dropLast(6) ?? "unknown")")
                     .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
-                    .padding(.bottom, Dimensions.largePadding)
+                    .padding(.vertical, Dimensions.largePadding)
                 Spacer()
             }
             
-            if showAutoView {
-                AutoView(notificationManager)
-            } else {
-                ManualView(notificationManager)
+            if notificationManager != nil {
+                if showAutoView {
+                    AutoView(notificationManager!)
+                } else {
+                    ManualView(notificationManager!)
+                }
             }
         }
         .dynamicTypeSize(DynamicTypeSize.large...DynamicTypeSize.large)
@@ -113,19 +139,52 @@ struct ContentView: View {
 
 struct AutoView: View {
     
-    unowned var notificationManager: NotificationManager!
+    unowned var notificationManager: NotificationManager
     @State private var simulator: Simulator?
     @State private var runID: Int = 0
-    @State private var rssiThreshold: Int = -8
+    @State private var rssiThresholdFactor: Int = -8
     @State private var isSending: Bool = false
     @State private var frequency: Int = 4
-    @State private var variance: Int = 2
+    @State private var varianceFactor: Int = 2
+    @State private var numberOfCopies: Int = 15
     @State private var destinations: Set<Address>
+    
+    @State private var countdownTimer: AnyCancellable?
+    @State private var remainingCountdownTime: Int = Utils.initialCountdownTime
+    @State private var countdownTimerIsActive: Bool = false
+    @State private var buttonWidth: CGFloat = .infinity
+        
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
     init(_ notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
         self.destinations = Set(notificationManager.contacts)
+    }
+    
+    private func startCountdown() {
+        Logger.view.trace("View attempts to \(#function)")
+        countdownTimerIsActive = true
+        countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect().sink { _ in
+            if self.remainingCountdownTime > 0 {
+                self.remainingCountdownTime -= 1
+            } else {
+                simulator?.start()
+                resetCountdown()
+            }
+        }
+    }
+        
+    private func resetCountdown() {
+        Logger.view.trace("View attempts to \(#function)")
+        countdownTimerIsActive = false
+        countdownTimer?.cancel()
+        remainingCountdownTime = Utils.initialCountdownTime
+    }
+    
+    private func adjustButtonWidth() {
+        let initialWidth: CGFloat = UIScreen.main.bounds.width - 2 * Dimensions.largePadding
+        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime + 1) * initialWidth / (CGFloat(Utils.initialCountdownTime) * 1.25)
+        withAnimation { buttonWidth = newWidth }
     }
     
     var body: some View {
@@ -164,7 +223,7 @@ struct AutoView: View {
                 .listRowSeparator(.hidden)
                 .disabled(simulator?.isRunning ?? false)
             
-            Stepper("RSSI threshold: \(rssiThreshold * 8)", value: $rssiThreshold, in: -16...0)
+            Stepper("RSSI threshold: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(Color("bleepPrimary"))
                 .listRowSeparator(.hidden)
@@ -181,37 +240,52 @@ struct AutoView: View {
             }
             .listRowSeparator(.hidden)
             
-            Stepper("Send every \(frequency) seconds", value: $frequency, in: 1...60)
+            Stepper(frequency > 1 ? "Send every \(frequency) seconds" : "Send every second", value: $frequency, in: 1...60)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                 .disabled(!isSending)
                 .listRowSeparator(.hidden)
                 .disabled(simulator?.isRunning ?? false)
             
-            Stepper("with ±\(variance * 25)% variance", value: $variance, in: 0...4)
+            Stepper("with ±\(varianceFactor * 25)% variance", value: $varianceFactor, in: 0...4)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                 .disabled(!isSending || simulator?.isRunning ?? false)
                 .listRowSeparator(.hidden)
-                .disabled(simulator?.isRunning ?? false)
             
-            Button(action: {
-                if simulator == nil || !simulator!.isRunning {
-                    Logger.view.trace("View attempts to start a new simulation")
-                    simulator = Simulator(notificationManager: notificationManager, runID: UInt(runID), rssiThreshold: rssiThreshold, isSending: isSending, frequency: UInt(frequency), variance: UInt(variance), destinations: destinations)
-                    simulator!.start(clearExistingLog: true) // TODO: SET TO FALSE
-                } else {
-                    Logger.view.trace("View attempts to stop the simulation")
-                    simulator!.stop()
+            if notificationManager is BinarySprayAndWait {
+                Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies" : "and 1 copy", value: $numberOfCopies, in: 1...15)
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                    .disabled(!isSending || simulator?.isRunning ?? false)
+                    .listRowSeparator(.hidden)
+            }
+            
+            HStack {
+                Spacer()
+                Button(action: {
+                    if countdownTimerIsActive {
+                        Logger.view.trace("View attempts to cancel the simulation")
+                        resetCountdown()
+                    } else if !(simulator?.isRunning ?? false) {
+                        Logger.view.trace("View attempts to start a new simulation")
+                        simulator = Simulator(notificationManager: notificationManager, runID: UInt(runID), rssiThresholdFactor: Int8(rssiThresholdFactor), isSending: isSending, frequency: UInt(frequency), varianceFactor: UInt8(varianceFactor), numberOfCopies: UInt8(numberOfCopies), destinations: destinations)
+                        startCountdown()
+                    } else {
+                        Logger.view.trace("View attempts to stop the simulation")
+                        simulator!.stop()
+                    }
+                }) {
+                    Text(countdownTimerIsActive ? String(remainingCountdownTime) : (simulator?.isRunning ?? false ? "Stop" : "Start"))
+                        .lineLimit(1)
+                        .frame(maxWidth: buttonWidth, minHeight: Dimensions.singleLineHeight)
+                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                        .background(simulator?.isRunning ?? false ? Color("bleepPrimary") : Color("bleepSecondary"))
+                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                        .cornerRadius(Dimensions.cornerRadius)
+                        .onChange(of: remainingCountdownTime, initial: true) { adjustButtonWidth() }
                 }
-            }) {
-                Text(simulator == nil || !simulator!.isRunning ? "Start" : "Stop")
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
-                    .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                    .background(simulator == nil || !simulator!.isRunning ? Color("bleepSecondary") : Color("bleepPrimary"))
-                    .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                    .cornerRadius(Dimensions.cornerRadius)
+                Spacer()
             }
             .listRowSeparator(.hidden)
             
@@ -246,7 +320,7 @@ struct AutoView: View {
 
 struct ManualView: View {
     
-    unowned var notificationManager: NotificationManager!
+    unowned var notificationManager: NotificationManager
     @State private var draft: String = ""
     @State private var destinationAddress: Address? = nil
     @FocusState private var textEditorFocused: Bool
@@ -366,6 +440,7 @@ struct ManualView: View {
             List(notificationManager.inbox.sorted(by: >)) { notification in
                 NotificationView(notification: notification)
             }
+            .listStyle(.plain)
             Spacer()
         }
     }
@@ -391,7 +466,7 @@ struct NotificationView: View {
         if showsMetadata {
             return notification.description
         } else {
-            return notification.message
+            return notification.protocolValue > 1 ? "(\(15/notification.sequenceNumberValue)) " : "" + notification.message
         }
     }
 }
@@ -427,5 +502,5 @@ struct LogoView: View {
 
 #Preview {
     ContentView()
-        .environment(try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: 15))
+//        .environment(try! BinarySprayAndWait(connectionManagerType: BluetoothManager.self, numberOfCopies: Utils.initialNumberOfCopies))
 }

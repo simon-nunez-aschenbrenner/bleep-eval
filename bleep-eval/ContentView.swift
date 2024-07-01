@@ -182,8 +182,8 @@ struct AutoView: View {
     }
     
     private func adjustButtonWidth() {
-        let initialWidth: CGFloat = UIScreen.main.bounds.width - 2 * Dimensions.largePadding
-        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime + 1) * initialWidth / (CGFloat(Utils.initialCountdownTime) * 1.25)
+        let initialWidth: CGFloat = UIScreen.main.bounds.width
+        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime + 1) * initialWidth / (CGFloat(Utils.initialCountdownTime) * 1.4)
         withAnimation { buttonWidth = newWidth }
     }
     
@@ -230,7 +230,7 @@ struct AutoView: View {
                 .disabled(simulator?.isRunning ?? false)
             
             HStack {
-                Text(isSending ? "Send and receive" : "Receive only")
+                Text(isSending ? "Receive and" : "Receive only")
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
                 Toggle("", isOn: $isSending)
@@ -240,7 +240,7 @@ struct AutoView: View {
             }
             .listRowSeparator(.hidden)
             
-            Stepper(frequency > 1 ? "Send every \(frequency) seconds" : "Send every second", value: $frequency, in: 1...60)
+            Stepper(frequency > 1 ? "send every \(frequency) seconds" : "Send every second", value: $frequency, in: 1...60)
                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                 .disabled(!isSending)
@@ -262,7 +262,7 @@ struct AutoView: View {
             }
             
             HStack {
-                Spacer()
+                Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
                 Button(action: {
                     if countdownTimerIsActive {
                         Logger.view.trace("View attempts to cancel the simulation")
@@ -285,7 +285,7 @@ struct AutoView: View {
                         .cornerRadius(Dimensions.cornerRadius)
                         .onChange(of: remainingCountdownTime, initial: true) { adjustButtonWidth() }
                 }
-                Spacer()
+                Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
             }
             .listRowSeparator(.hidden)
             
@@ -344,8 +344,7 @@ struct ManualView: View {
     private func sendMessage() {
         if !draft.isEmpty && destinationAddress != nil {
             Logger.view.info("View attempts to \(#function)")
-            let notification = notificationManager.create(destinationAddress: destinationAddress!, message: draft)
-            notificationManager.insert(notification)
+            notificationManager.send(draft, to: destinationAddress!)
             draft.removeAll()
         }
     }

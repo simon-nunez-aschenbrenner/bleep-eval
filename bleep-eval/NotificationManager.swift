@@ -23,32 +23,32 @@ protocol NotificationManager: AnyObject {
     var contacts: [Address]! { get }
     var maxMessageLength: Int! { get }
     var inbox: [Notification]! { get }
-    
-    func receiveNotification(data: Data)
-    func receiveAcknowledgement(data: Data) -> Bool
-    func sendNotifications()
-    func create(destinationAddress: Address, message: String) -> Notification
-    func insert(_ notification: Notification)
+    func receiveNotification(_ data: Data)
+    func receiveAcknowledgement(_ data: Data) -> Bool
+    func transmitNotifications()
+    func send(_ message: String, to destinationAddress: Address)
     
 }
 
-// MARK: Simple superclass
+// MARK: Direct superclass
 
 @Observable
 class Direct: NotificationManager {
     
     let minNotificationLength: Int = 105
     let protocolValue: UInt8!
+    
     final var evaluationLogger: EvaluationLogger?
     final var rssiThreshold: Int8! = -128
+    
     final private(set) var maxMessageLength: Int!
     final private(set) var address: Address!
     final private(set) var contacts: [Address]!
-    final fileprivate(set) var connectionManager: ConnectionManager!
     final private(set) var inbox: [Notification]! = []
-    final fileprivate(set) var receivedHashedIDs: Set<Data>! = []
-    final private(set) var sendQueue: [Notification: Bool]! = [:]
+    final private(set) var receivedHashedIDs: Set<Data>! = []
     
+    final fileprivate var transmitQueue: [Notification: Bool]! = [:]
+    final fileprivate var connectionManager: ConnectionManager!
     final fileprivate var container: ModelContainer!
     final fileprivate var context: ModelContext!
     
@@ -113,18 +113,7 @@ class Direct: NotificationManager {
     
     // MARK: receiving methods
     
-    final fileprivate func populateReceivedHashedIDsArray() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let hashedIDs = fetchAllHashedIDs()
-        if hashedIDs == nil || hashedIDs!.isEmpty {
-            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs set")
-        } else {
-            receivedHashedIDs = Set(hashedIDs!)
-            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs set with \(self.receivedHashedIDs.count) hashedIDs")
-        }
-    }
-    
-    func receiveNotification(data: Data) {
+    final func receiveNotification(_ data: Data) {
         Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
         guard data.count >= minNotificationLength else { // TODO: throw
             Logger.notification.error("NotificationManager will ignore the notification data as it's not at least \(self.minNotificationLength) bytes long")
@@ -142,25 +131,27 @@ class Direct: NotificationManager {
             connectionManager.disconnect()
             return
         }
-        guard !receivedHashedIDs.contains(hashedID) else {
-            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)) as it is already stored")
-            return
-        }
         guard controlByte.protocolValue == protocolValue else { // TODO: throw
             Logger.notification.error("NotificationManager will ignore notification #\(Utils.printID(hashedID)), as its protocolValue \(controlByte.protocolValue) doesn't match the notificationManager protocolValue \(self.protocolValue)")
             return
         }
-        guard hashedDestinationAddress == self.address.hashed else {
-            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)), as its hashedDestinationAddress (\(Utils.printID(hashedDestinationAddress))) doesn't match the hashed notificationManager address (\(Utils.printID(self.address.hashed)))")
+        guard !receivedHashedIDs.contains(hashedID) else {
+            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)) as it is already stored")
+            return
+        }
+        let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
+        guard accept(notification) else {
+            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)) as accept(notification) returned false")
             return
         }
         Logger.notification.trace("NotificationManager appends hashedID #\(Utils.printID(hashedID)) to the receivedHashedIDs set")
         receivedHashedIDs.insert(hashedID)
-        let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
         Logger.notification.info("NotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
-        try! notification.setDestinationControl(to: 0)
-        Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID))")
-        updateInbox(with: notification)
+        if notification.hashedDestinationAddress == self.address.hashed { // TODO: In the future we may want to handle the notification as any other and resend it to obfuscate it was meant for us
+            try! notification.setDestinationControl(to: 0)
+            Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because it reached its destination")
+            updateInbox(with: notification)
+        }
         if evaluationLogger == nil {
             Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
         } else {
@@ -169,24 +160,58 @@ class Direct: NotificationManager {
         insert(notification)
     }
     
-    func receiveAcknowledgement(data: Data) -> Bool {
+    func receiveAcknowledgement(_ data: Data) -> Bool {
         Logger.notification.error("NotificationManager does not support \(#function)")
         return false
     }
     
+    fileprivate func accept(_ notification: Notification) -> Bool {
+        return notification.destinationControlValue == 2 && notification.hashedDestinationAddress == self.address.hashed
+    }
+    
+    final fileprivate func populateReceivedHashedIDsArray() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let hashedIDs = fetchAllHashedIDs()
+        if hashedIDs == nil || hashedIDs!.isEmpty {
+            Logger.notification.debug("NotificationManager has no hashedIDs to add to the receivedHashedIDs set")
+        } else {
+            receivedHashedIDs = Set(hashedIDs!)
+            Logger.notification.debug("NotificationManager has successfully populated the receivedHashedIDs set with \(self.receivedHashedIDs.count) hashedIDs")
+        }
+    }
+    
+    final fileprivate func updateInbox() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let countBefore = inbox.count
+        inbox = fetchAll(for: self.address.hashed) ?? []
+        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification(s) to the inbox")
+    }
+    
+    final fileprivate func updateInbox(with notification: Notification) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
+// TODO: uncomment when check doesn't happen in receiveNotification(_ data: Data)
+//        guard notification.hashedDestinationAddress == self.address.hashed else {
+//            Logger.notification.debug("NotificationManager won't \(#function) notification #\(Utils.printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the hashed notificationManager address")
+//            return
+//        }
+        let countBefore = inbox.count
+        inbox.append(notification)
+        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification to the inbox")
+    }
+    
     // MARK: sending methods
     
-    final func sendNotifications() {
+    final func transmitNotifications() {
         Logger.notification.trace("NotificationManager may attempt to \(#function)")
-        if sendQueue.isEmpty { populateSendQueue() }
-        Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.sendQueue.values.filter { !$0 }.count)/\(self.sendQueue.count) unsent notifications in the sendQueue")
-        for element in sendQueue {
+        if transmitQueue.isEmpty { populateTransmitQueue() }
+        Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.transmitQueue.values.filter { !$0 }.count)/\(self.transmitQueue.count) notifications in the transmitQueue")
+        for element in transmitQueue {
             guard !element.value else {
-                Logger.notification.trace("NotificationManager skips sending notification #\(Utils.printID(element.key.hashedID)) because it is marked as sent")
+                Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(element.key.hashedID)) because it was already transmitted")
                 continue
             }
-            if send(notification: element.key) {
-                sendQueue[element.key] = true
+            if transmit(element.key) {
+                transmitQueue[element.key] = true
                 if evaluationLogger == nil {
                     Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
                 } else {
@@ -194,25 +219,19 @@ class Direct: NotificationManager {
                 }
                 continue
             } else {
-                return // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again
+                return // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
             }
         }
         Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop successfully")
-        sendEndOfNotificationsSignal()
+        transmitEndOfNotificationsSignal()
     }
     
-    final fileprivate func populateSendQueue() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let notifications = fetchAllSendable()
-        if notifications == nil || notifications!.isEmpty {
-            Logger.notification.debug("NotificationManager has no notifications to add to the sendQueue")
-        } else {
-            self.sendQueue = notifications!.reduce(into: [Notification: Bool]()) { $0[$1] = false }
-            Logger.notification.debug("NotificationManager has successfully populated the sendQueue with \(self.sendQueue.count) notification(s): \(self.sendQueue)")
-        }
+    func send(_ message: String, to destinationAddress: Address) {
+        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 2, sequenceNumberValue: 0)
+        insert(Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message))
     }
     
-    fileprivate func send(notification: Notification) -> Bool {
+    fileprivate func transmit(_ notification: Notification) -> Bool {
         Logger.notification.debug("NotificationManager attempts to \(#function) \(notification.description) with message: '\(notification.message)'")
         var data = Data()
         data.append(notification.controlByte)
@@ -223,15 +242,26 @@ class Direct: NotificationManager {
         assert(data.count == minNotificationLength)
         if let messageData = notification.message.data(using: .utf8) { data.append(messageData) }
         if connectionManager.send(notification: data) {
-            Logger.notification.info("NotificationManager successfully sent notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
+            Logger.notification.info("NotificationManager successfully transmitted notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
             return true
         } else {
-            Logger.notification.warning("NotificationManager did not send notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
+            Logger.notification.warning("NotificationManager did not transmit notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
             return false
         }
     }
     
-    final fileprivate func sendEndOfNotificationsSignal() {
+    final fileprivate func populateTransmitQueue() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let notifications = fetchAllTransmittable()
+        if notifications == nil || notifications!.isEmpty {
+            Logger.notification.debug("NotificationManager has no notifications to add to the transmitQueue")
+        } else {
+            self.transmitQueue = notifications!.reduce(into: [Notification: Bool]()) { $0[$1] = false }
+            Logger.notification.debug("NotificationManager has successfully populated the transmitQueue with \(self.transmitQueue.count) notification(s): \(self.transmitQueue)")
+        }
+    }
+
+    final fileprivate func transmitEndOfNotificationsSignal() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 0, sequenceNumberValue: 0)
         var data = Data()
@@ -239,39 +269,30 @@ class Direct: NotificationManager {
         data.append(Data(count: minNotificationLength-data.count))
         assert(data.count == minNotificationLength)
         if connectionManager.send(notification: data) {
-            Logger.notification.info("NotificationManager successfully sent \(data.count) zeros and will remove all notifications from the sendQueue")
-            self.sendQueue.removeAll()
+            Logger.notification.info("NotificationManager successfully transmitted \(data.count) zeros and will remove all notifications from the sendQueue")
+            self.transmitQueue.removeAll()
         } else {
-            Logger.notification.warning("NotificationManager did not send \(data.count) zeros")
-            // peripheralManagerIsReady(toUpdateSubscribers) will call sendNotifications() again
+            Logger.notification.warning("NotificationManager did not transmit \(data.count) zeros")
+            // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
         }
     }
-        
-    // MARK: creation methods
     
-    func create(destinationAddress: Address, message: String) -> Notification {
-        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 2, sequenceNumberValue: 0)
-        return Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message)
-    }
-    
-    // MARK: counting methods
-    
-    fileprivate func fetchAllSendableCount() -> Int {
-        Logger.notification.debug("NotificationManager attempts to \(#function)")
-        let result = try? context.fetchCount(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue == 2 }))
-        return result ?? 0
-    }
-    
-    // MARK: fetching methods
+    // MARK: persistence methods
     
     final fileprivate func fetchAll() -> [Notification]? {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         return try? context.fetch(FetchDescriptor<Notification>())
     }
     
-    fileprivate func fetchAllSendable() -> [Notification]? {
+    final fileprivate func fetchAllTransmittable() -> [Notification]? {
         Logger.notification.debug("NotificationManager attempts to \(#function)")
-        return try? context.fetch(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue == 2 }))
+        return try? context.fetch(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue != 0 }))
+    }
+    
+    final fileprivate func fetchAllTransmittableCount() -> Int {
+        Logger.notification.debug("NotificationManager attempts to \(#function)")
+        let result = try? context.fetchCount(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue != 0 }))
+        return result ?? 0
     }
     
     final fileprivate func fetchAll(for hashedAddress: Data) -> [Notification]? {
@@ -291,9 +312,7 @@ class Direct: NotificationManager {
         let fetchDescriptor = FetchDescriptor<Notification>(predicate: #Predicate { notification in notification.hashedID == hashedID })
         return try? context.fetch(fetchDescriptor)[0]
     }
-    
-    // MARK: insertion methods
-    
+        
     final func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
         context.insert(notification)
@@ -309,27 +328,6 @@ class Direct: NotificationManager {
             Logger.notification.error("NotificationManager failed to save the context: \(error)")
         }
     }
-    
-    // MARK: inbox methods
-    
-    final fileprivate func updateInbox() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let countBefore = inbox.count
-        inbox = fetchAll(for: self.address.hashed) ?? []
-        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification(s) to the inbox")
-    }
-    
-    final fileprivate func updateInbox(with notification: Notification) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
-//        guard notification.hashedDestinationAddress == self.address.hashed else {
-//            Logger.notification.debug("NotificationManager won't \(#function) notification #\(Utils.printID(notification.hashedID)) because its hashedDestinationAddress doesn't match the hashed notificationManager address")
-//            return
-//        }
-        let countBefore = inbox.count
-        inbox.append(notification)
-        Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification to the inbox")
-    }
-    
     // TODO: deletion methods
 }
 
@@ -345,79 +343,16 @@ class Epidemic: Direct {
     }
         
     // MARK: receiving methods
-        
-    override func receiveNotification(data: Data) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
-        guard data.count >= minNotificationLength else { // TODO: throw
-            Logger.notification.error("NotificationManager will ignore the notification data as it's not at least \(self.minNotificationLength) bytes long")
-            return
-        }
-        let controlByte = ControlByte(value: UInt8(data[0]))
-        let hashedID = data.subdata(in: 1..<33)
-        let hashedDestinationAddress = data.subdata(in: 33..<65)
-        let hashedSourceAddress = data.subdata(in: 65..<97)
-        let sentTimestampData = data.subdata(in: 97..<105)
-        let messageData = data.subdata(in: 105..<data.count)
-        let message: String = String(data: messageData, encoding: .utf8) ?? ""
-        guard controlByte.destinationControlValue > 0 else {
-            Logger.notification.info("NotificationManager successfully received endOfNotificationsSignal")
-            connectionManager.disconnect()
-            return
-        }
-        guard !receivedHashedIDs.contains(hashedID) else {
-            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)) as it is already stored")
-            return
-        }
-        guard controlByte.protocolValue == protocolValue else { // TODO: throw
-            Logger.notification.error("NotificationManager will ignore notification #\(Utils.printID(hashedID)), as its protocolValue \(controlByte.protocolValue) doesn't match the notificationManager protocolValue \(self.protocolValue)")
-            return
-        }
-        guard controlByte.destinationControlValue < 2 || hashedDestinationAddress == self.address.hashed else {
-            Logger.notification.info("NotificationManager will ignore notification #\(Utils.printID(hashedID)), as its destinationControlValue is 2 and its hashedDestinationAddress (\(Utils.printID(hashedDestinationAddress))) doesn't match the hashed notificationManager address (\(Utils.printID(self.address.hashed)))")
-            return
-        }
-        Logger.notification.trace("NotificationManager appends hashedID #\(Utils.printID(hashedID)) to the receivedHashedIDs set")
-        receivedHashedIDs.insert(hashedID)
-        let notification = Notification(controlByte: controlByte, hashedID: hashedID, hashedDestinationAddress: hashedDestinationAddress, hashedSourceAddress: hashedSourceAddress, sentTimestampData: sentTimestampData, message: message)
-        Logger.notification.info("NotificationManager successfully received notification \(notification.description) with message: '\(notification.message)'")
-        if notification.hashedDestinationAddress == self.address.hashed { // TODO: In the future we may want to handle the notification as any other and resend it to obfuscate it was meant for us
-            try! notification.setDestinationControl(to: 0)
-            Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because its hashedDestinationAddress matches the hashed notificationManager address")
-            updateInbox(with: notification)
-        }
-        if evaluationLogger == nil {
-            Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
-        } else {
-            evaluationLogger!.log(notification, at: self.address)
-        }
-        insert(notification)
-        acknowledge(notification: notification)
-    }
     
-    fileprivate func acknowledge(notification: Notification) {
-        Logger.notification.error("NotificationManager does not support \(#function)")
+    override fileprivate func accept(_ notification: Notification) -> Bool {
+        return notification.destinationControlValue == 1
     }
         
-    // MARK: creation methods
+    // MARK: sending methods
     
-    override func create(destinationAddress: Address, message: String) -> Notification {
+    override func send(_ message: String, to destinationAddress: Address) {
         let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 1, sequenceNumberValue: 0)
-        return Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message)
-    }
-    
-    // MARK: counting methods
-    
-    override fileprivate func fetchAllSendableCount() -> Int {
-        Logger.notification.debug("NotificationManager attempts to \(#function)")
-        let result = try? context.fetchCount(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue != 0 }))
-        return result ?? 0
-    }
-    
-    // MARK: fetching methods
-    
-    override fileprivate func fetchAllSendable() -> [Notification]? {
-        Logger.notification.debug("NotificationManager attempts to \(#function)")
-        return try? context.fetch(FetchDescriptor<Notification>(predicate: #Predicate<Notification> { return $0.destinationControlValue != 0 }))
+        insert(Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message))
     }
     
 }
@@ -445,12 +380,7 @@ class BinarySprayAndWait: Epidemic {
     
     // MARK: receiving methods
     
-    override fileprivate func acknowledge(notification: Notification) {
-        Logger.notification.debug("BinarySprayAndWait NotificationManager attempts to \(#function) #\(Utils.printID(notification.hashedID))")
-        connectionManager.acknowledge(hashedID: notification.hashedID)
-    }
-    
-    override func receiveAcknowledgement(data: Data) -> Bool {
+    override func receiveAcknowledgement(_ data: Data) -> Bool {
         Logger.notification.debug("BinarySprayAndWait NotificationManager attempts to \(#function) of \(data.count) bytes")
         guard data.count == self.acknowledgementLength else { // TODO: throw
             Logger.notification.error("BinarySprayAndWait NotificationManager will ignore the acknowledgement data as it's not \(self.acknowledgementLength) bytes long")
@@ -471,9 +401,28 @@ class BinarySprayAndWait: Epidemic {
         }
     }
     
+    override fileprivate func accept(_ notification: Notification) -> Bool {
+        if notification.destinationControlValue == 1 || notification.hashedDestinationAddress == self.address.hashed {
+            acknowledge(notification)
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    private func acknowledge(_ notification: Notification) {
+        Logger.notification.debug("BinarySprayAndWait NotificationManager attempts to \(#function) #\(Utils.printID(notification.hashedID))")
+        connectionManager.acknowledge(hashedID: notification.hashedID)
+    }
+    
     // MARK: sending methods
     
-    override fileprivate func send(notification: Notification) -> Bool {
+    override func send(_ message: String, to destinationAddress: Address) {
+        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 1, sequenceNumberValue: self.numberOfCopies)
+        insert(Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message))
+    }
+    
+    override fileprivate func transmit(_ notification: Notification) -> Bool {
         Logger.notification.debug("BinarySprayAndWait NotificationManager attempts to \(#function) \(notification.description) with a newControlByte")
         var newControlByte: ControlByte!
         do {
@@ -503,13 +452,6 @@ class BinarySprayAndWait: Epidemic {
             Logger.notification.warning("BinarySprayAndWait NotificationManager did not send notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
             return false
         }
-    }
-    
-    // MARK: creation methods
-    
-    override func create(destinationAddress: Address, message: String) -> Notification {
-        let controlByte = try! ControlByte(protocolValue: self.protocolValue, destinationControlValue: 1, sequenceNumberValue: self.numberOfCopies)
-        return Notification(controlByte: controlByte, sourceAddress: self.address, destinationAddress: destinationAddress, message: message)
     }
     
 }

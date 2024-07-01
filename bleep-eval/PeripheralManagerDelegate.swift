@@ -123,7 +123,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
                 continue
             }
             Logger.peripheral.debug("Peripheral didReceiveWrite for '\(BluetoothManager.getName(of: request.characteristic.uuid))' from central '\(Utils.printID(request.central.identifier.uuidString))'")
-            if notificationManager.receiveAcknowledgement(data: data) {
+            if notificationManager.receiveAcknowledgement(data) {
                 peripheral.respond(to: request, withResult: .success)
             } else {
                 peripheral.respond(to: request, withResult: .unlikelyError)
@@ -135,7 +135,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
         self.central = central
         peripheralManager.setDesiredConnectionLatency(.low, for: central)
-        notificationManager.sendNotifications()
+        notificationManager.transmitNotifications()
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
@@ -145,7 +145,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         Logger.peripheral.debug("\(#function):toUpdateSubscribers")
-        notificationManager.sendNotifications()
+        notificationManager.transmitNotifications()
     }
     
 }

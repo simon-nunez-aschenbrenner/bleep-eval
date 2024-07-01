@@ -62,8 +62,7 @@ class Simulator {
         let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
-            let notification = self.notificationManager.create(destinationAddress: self.destinations.randomElement()!, message: Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)))
-            self.notificationManager.insert(notification)
+            self.notificationManager.send(Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)), to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }
@@ -92,7 +91,7 @@ class EvaluationLogger {
         Logger.evaluation.debug("EvaluationLogger initializes with runID \(runID)")
         self.deviceName = deviceName ?? "unknown"
         self.runID = runID
-        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName!).\(String(format: "%02u", self.runID)).csv")
+        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName!.lowercased()).\(String(format: "%02u", self.runID)).csv")
         if !fileManager.fileExists(atPath: fileURL.path) {
             fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
             Logger.evaluation.trace("EvalutaionLogger created a new log file")

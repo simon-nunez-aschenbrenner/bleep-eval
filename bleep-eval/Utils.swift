@@ -10,10 +10,12 @@ import Foundation
 import OSLog
 
 enum BleepError: Error {
-    case invalidControlByteValue, invalidAddress
+    
+    case invalidControlByteValue, invalidAddress, missingDestination
 }
 
 extension Logger {
+    
     private static var subsystem = Bundle.main.bundleIdentifier!
     static let view = Logger(subsystem: subsystem, category: "view")
     static let evaluation = Logger(subsystem: subsystem, category: "evaluation")
@@ -21,6 +23,39 @@ extension Logger {
     static let bluetooth = Logger(subsystem: subsystem, category: "bluetooth")
     static let peripheral = Logger(subsystem: subsystem, category: "peripheral")
     static let central = Logger(subsystem: subsystem, category: "central")
+}
+
+struct Font {
+    
+    struct BHTCaseMicro {
+        static let Regular = "BHTCaseMicro-Regular"
+        static let Italic = "BHTCaseMicro-Italic"
+        static let Bold = "BHTCaseMicro-Bold"
+        static let BoldItalic = "BHTCaseMicro-BoldItalic"
+    }
+    struct BHTCaseText {
+        static let Regular = "BHTCaseText-Regular"
+        static let Italic = "BHTCaseText-Italic"
+        static let Bold = "BHTCaseText-Bold"
+        static let BoldItalic = "BHTCaseText-BoldItalic"
+    }
+    struct Size {
+        static let Logo = 32.0
+        static let Title = 32.0
+        static let Text = 16.0
+    }
+}
+
+struct Dimensions {
+    
+    static let lineWidth: CGFloat = 1.0
+    static let largePadding: CGFloat = Font.Size.Text
+    static let mediumPadding: CGFloat = Font.Size.Text * 0.5
+    static let smallPadding: CGFloat = Font.Size.Text * 0.25
+    static let sendButtonSize: CGFloat = Font.Size.Text * 2
+    static let singleLineHeight: CGFloat = Font.Size.Text * 2.5 // sendButtonSize + small vertical padding = Font.Size.Text + small and medium vertical padding
+    static let cornerRadius: CGFloat = Font.Size.Text * 1.25 // singleLineHeight/2
+    static let textEditorWidthOffset: CGFloat = 2 * lineWidth + 2 * largePadding + mediumPadding + 3 * smallPadding + sendButtonSize
 }
 
 struct Utils {

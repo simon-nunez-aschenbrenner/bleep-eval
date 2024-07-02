@@ -1,5 +1,5 @@
 //
-//  BluetoothManager.swift
+//  ConnectionManager.swift
 //  bleep-eval
 //
 //  Created by Simon Núñez Aschenbrenner on 10.05.24.
@@ -19,7 +19,7 @@ protocol ConnectionManager {
     init(notificationManager: NotificationManager)
     
     func advertise(with randomIdentifier: String?)
-    func send(notification data: Data) -> Bool
+    func transmit(notification data: Data) -> Bool
     func acknowledge(hashedID data: Data)
     func disconnect()
     
@@ -78,7 +78,7 @@ class BluetoothManager: ConnectionManager {
         recentRandomIdentifiers.insert(randomIdentifier)
     }
     
-    func send(notification data: Data) -> Bool {
+    func transmit(notification data: Data) -> Bool {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }

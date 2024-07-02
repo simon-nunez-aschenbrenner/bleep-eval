@@ -12,7 +12,7 @@ import OSLog
 
 // MARK: ControlByte
 
-struct ControlByte: CustomStringConvertible, Equatable {
+struct ControlByte: Equatable, CustomStringConvertible {
         
     let protocolValue: UInt8
     let destinationControlValue: UInt8
@@ -49,7 +49,7 @@ struct ControlByte: CustomStringConvertible, Equatable {
 // MARK: Notification
 
 @Model
-class Notification: Comparable, CustomStringConvertible, Equatable {
+class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     private(set) var protocolValue: UInt8!
     private(set) var destinationControlValue: UInt8!
@@ -124,12 +124,15 @@ class Notification: Comparable, CustomStringConvertible, Equatable {
         self.sequenceNumberValue = value
     }
     
-    static func < (lhs: Notification, rhs: Notification) -> Bool {
-        return lhs.sentTimestamp < rhs.sentTimestamp
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(hashedID)
     }
     
     static func == (lhs: Notification, rhs: Notification) -> Bool {
         return lhs.hashedID == rhs.hashedID
     }
-
+    
+    static func < (lhs: Notification, rhs: Notification) -> Bool {
+        return lhs.sentTimestamp < rhs.sentTimestamp
+    }
 }

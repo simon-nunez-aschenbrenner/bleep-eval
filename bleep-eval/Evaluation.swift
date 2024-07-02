@@ -25,21 +25,20 @@ class Simulator {
     private(set) var logFileURL: URL?
     private var timer: DispatchSourceTimer?
     
-    init(notificationManager: NotificationManager, runID: UInt, rssiThresholdFactor: Int8, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, numberOfCopies: UInt8, destinations: Set<Address> = []) {
+    init(notificationManager: NotificationManager, runID: UInt, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, destinations: Set<Address> = []) throws {
         Logger.evaluation.trace("Simulator initializes")
-        
         notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
-        notificationManager.rssiThreshold = Int8(rssiThresholdFactor * 8)
-        try? notificationManager.setNumberOfCopies(to: numberOfCopies)
         self.notificationManager = notificationManager
-        
         self.runID = runID
         self.isSending = isSending
         self.frequency = frequency
         self.variance = min(Float(varianceFactor), 4.0) * 0.25
+        guard !destinations.isEmpty else {
+            throw BleepError.missingDestination
+        }
         self.destinations = destinations
         self.isRunning = false
-        Logger.evaluation.debug("Simulator initialized with runID=\(runID), rssiThreshold=\(rssiThresholdFactor * 8), isSending=\(isSending)\(isSending ? ", frequency=\(frequency)s, variance=±\(Int(self.variance*100))%, numberOfCopies=\(numberOfCopies), destinations=\(destinations)" : "")")
+        Logger.evaluation.debug("Simulator initialized with runID=\(runID), isSending=\(isSending)\(isSending ? ", frequency=\(frequency)s, variance=±\(Int(self.variance*100))%, destinations=\(destinations)" : "")")
     }
     
     func start() {
@@ -73,11 +72,8 @@ class Simulator {
         timer?.cancel()
         timer = nil
         notificationManager.evaluationLogger = nil
-        notificationManager.rssiThreshold = Int8.min
-        try! notificationManager.setNumberOfCopies(to: Utils.initialNumberOfCopies)
         isRunning = false
     }
-    
 }
 
 class EvaluationLogger {
@@ -125,15 +121,15 @@ class EvaluationLogger {
         stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
         stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
         var status: String = "0" // unknown
-        if notification.receivedTimestamp == nil { status = "1" } // created
+        if notification.receivedTimestamp == nil { status = "1" } // sent
         else if address.hashed == notification.hashedSourceAddress { status = "2" } // forwarded
         else if address.hashed == notification.hashedDestinationAddress { status = "3" } // received
         if notification.destinationControlValue == 0 { status = "4" } // arrived
         stringBuilder.append(status)
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
-        stringBuilder.append(String(notification.protocolValue)) // 0 = epidemic, 1 = binary spray and wait, TODO: 2 = ???, 3 = ???
-        stringBuilder.append(String(notification.destinationControlValue)) // 0 = nobody/reached destination, 1 = anybody, 2 = destination only, TODO: 3 = ???
+        stringBuilder.append(String(notification.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Binary Spray and Wait, TODO: 3 = ???
+        stringBuilder.append(String(notification.destinationControlValue)) // 0 = Nobody (Reached Destination), 1 = Anybody, 2 = Destination only, TODO: 3 = ???
         stringBuilder.append(String(notification.sequenceNumberValue)) // 0...15
         stringBuilder.append(notification.hashedSourceAddress.base64EncodedString())
         stringBuilder.append(String(notification.sentTimestamp.timeIntervalSinceReferenceDate as Double))

@@ -11,10 +11,13 @@ import SwiftUI
 
 @main
 struct bleepEvalApp: App {
+    
+    @State private var notificationManager = BleepManager(type: .binarySprayAndWait, connectionManagerType: BluetoothManager.self)
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainView()
+                .environment(notificationManager)
         }
     }
 }

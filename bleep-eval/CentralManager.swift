@@ -93,6 +93,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         Logger.central.info("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(Int8(RSSI.int8Value))) and attempts to connect to it")
+        notificationManager.lastRSSIValue = Int8(RSSI.int8Value)
         guard Int8(RSSI.int8Value) > notificationManager.rssiThreshold else {
             Logger.central.warning("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as the RSSI \(Int8(RSSI.int8Value)) is below the threshold RSSI \(self.notificationManager.rssiThreshold)")
             return

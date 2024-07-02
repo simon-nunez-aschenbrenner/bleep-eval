@@ -16,6 +16,7 @@ protocol NotificationManager: AnyObject {
     // For simulation/evaluation
     var evaluationLogger: EvaluationLogger? { get set }
     var rssiThreshold: Int8! { get set }
+    var lastRSSIValue: Int8? { get set }
     var receivedHashedIDs: Set<Data>! { get }
     func setNumberOfCopies(to value: UInt8) throws
 
@@ -63,6 +64,7 @@ class BleepManager: NotificationManager {
             Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold)")
         }
     }
+    var lastRSSIValue: Int8?
     
     private(set) var maxMessageLength: Int!
     private(set) var address: Address!
@@ -76,6 +78,11 @@ class BleepManager: NotificationManager {
         }
     }
     private var transmitQueue: [Notification: Bool]! = [:]
+//    private var isTransmitting: Bool = false {
+//        didSet {
+//            Logger.notification.trace("NotificationManager isTransmitting=\(self.isTransmitting)")
+//        }
+//    }
     private var connectionManager: ConnectionManager!
     private var container: ModelContainer!
     private var context: ModelContext!
@@ -283,6 +290,7 @@ class BleepManager: NotificationManager {
         Logger.notification.trace("NotificationManager may attempt to \(#function)")
         if transmitQueue.isEmpty { populateTransmitQueue() }
         Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.transmitQueue.values.filter { !$0 }.count)/\(self.transmitQueue.count) notifications in the transmitQueue")
+//        isTransmitting = true
         for element in transmitQueue {
             guard !element.value else {
                 Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(element.key.hashedID)) because it was already transmitted")
@@ -302,6 +310,7 @@ class BleepManager: NotificationManager {
         }
         Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop successfully")
         transmitEndOfNotificationsSignal()
+//        isTransmitting = false
     }
     
     private func transmit(_ notification: Notification) -> Bool {
@@ -347,6 +356,7 @@ class BleepManager: NotificationManager {
         if connectionManager.transmit(notification: data) {
             Logger.notification.info("NotificationManager successfully transmitted \(data.count) zeros and will remove all notifications from the sendQueue")
             self.transmitQueue.removeAll()
+            // TODO: wait to receive didUnsubscribe?
         } else {
             Logger.notification.warning("NotificationManager did not transmit \(data.count) zeros")
             // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
@@ -369,12 +379,23 @@ class BleepManager: NotificationManager {
         connectionManager.acknowledge(hashedID: notification.hashedID)
     }
     
+//    private func waitForEndOfTransmission() async {
+//        Task {
+//            while isTransmitting {
+//                try? await Task.sleep(nanoseconds: 2_000_000_000) // TODO: adjust
+//            }
+//        }
+//    }
+    
     // MARK: persisting
     
     func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
         context.insert(notification)
         save()
+//        Task {
+//            await waitForEndOfTransmission()
+//        }
         connectionManager.advertise(with: String(Address().base58Encoded.suffix(8)))
     }
     

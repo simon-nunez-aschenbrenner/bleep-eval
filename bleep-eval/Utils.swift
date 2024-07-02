@@ -55,6 +55,7 @@ struct Dimensions {
     static let sendButtonSize: CGFloat = Font.Size.Text * 2
     static let singleLineHeight: CGFloat = Font.Size.Text * 2.5 // sendButtonSize + small vertical padding = Font.Size.Text + small and medium vertical padding
     static let cornerRadius: CGFloat = Font.Size.Text * 1.25 // singleLineHeight/2
+    static let shadowRadius: CGFloat = 15.0
     static let textEditorWidthOffset: CGFloat = 2 * lineWidth + 2 * largePadding + mediumPadding + 3 * smallPadding + sendButtonSize
 }
 
@@ -71,8 +72,11 @@ struct Utils {
     static let initialNumberOfCopies: UInt8 = 15
     static let initialCountdownTime = 10
     
-    static func generateText(with length: Int) -> String {
-        let end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210"
+    static func generateText(with length: Int, testPattern: Bool = true) -> String {
+        var end = " // This test message contains \(length) ASCII characters"
+        if testPattern {
+            end += ". The last visible digit indicates the number of characters missing: 9876543210"
+        }
         var result = ""
         if end.count > length {
             result = String(end.suffix(length))

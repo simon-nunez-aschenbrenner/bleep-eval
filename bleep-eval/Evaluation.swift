@@ -11,9 +11,7 @@ import UIKit
 
 @Observable
 class Simulator {
-    
-    static let minMessageLength = 77
-    
+        
     unowned private var notificationManager: NotificationManager
     private let runID: UInt
     private let isSending: Bool
@@ -61,7 +59,7 @@ class Simulator {
         let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
-            self.notificationManager.send(Utils.generateText(with: Int.random(in: Simulator.minMessageLength...self.notificationManager.maxMessageLength)), to: self.destinations.randomElement()!)
+            self.notificationManager.send(Utils.generateText(with: Int.random(in: 50...100)), to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }

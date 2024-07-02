@@ -26,6 +26,8 @@ struct SimulationView: View {
     @State private var remainingCountdownTime: Int = Utils.initialCountdownTime
     @State private var countdownTimerIsActive: Bool = false
     @State private var buttonWidth: CGFloat = .infinity
+    @State private var showRSSIOverlay: Bool = false
+    @State private var suggestedRSSIThresholdFactor: Int = 0
         
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
@@ -62,133 +64,180 @@ struct SimulationView: View {
     
     var body: some View {
         
-        // MARK: Destinations
-        
-        LazyVGrid(columns: columns) {
-            ForEach(notificationManager.contacts) { address in
-                Button(action: {
-                    if destinations.contains(address) && destinations.count > 1 {
-                        destinations.remove(address)
-                    } else {
-                        destinations.insert(address)
-                    }
-                }) {
-                    Text(address.name ?? address.base58Encoded)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
-                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .background(destinations.contains(address) ? Color("bleepPrimary") : Color("bleepSecondary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(Dimensions.cornerRadius)
-                }
-                .disabled(simulator?.isRunning ?? false)
-            }
-        }
-        .padding(.horizontal)
-        
-        // MARK: Simulation
-        
-        List {
+        ZStack {
             
-            Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
-                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
-                .listRowSeparator(.hidden)
-                .disabled(simulator?.isRunning ?? false)
-            
-            Stepper("RSSI threshold: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
-                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
-                .listRowSeparator(.hidden)
-                .disabled(simulator?.isRunning ?? false)
-                .onChange(of: rssiThresholdFactor, initial: true) { notificationManager.rssiThreshold = Int8(rssiThresholdFactor * 8) }
-            
-            HStack {
-                Text(isSending ? "Receive and" : "Receive only")
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .foregroundColor(Color("bleepPrimary"))
-                Toggle("", isOn: $isSending)
-                    .padding(.trailing, Dimensions.largePadding)
-                    .tint(Color("bleepPrimary"))
-                    .disabled(simulator?.isRunning ?? false)
-            }
-            .listRowSeparator(.hidden)
-            
-            if isSending {
-                Stepper(frequency > 1 ? "send every \(frequency) seconds" : "send every second", value: $frequency, in: 1...60)
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
-                    .disabled(!isSending)
-                    .listRowSeparator(.hidden)
-                    .disabled(simulator?.isRunning ?? false)
+            VStack {
                 
-                Stepper("with ±\(varianceFactor * 25)% variance", value: $varianceFactor, in: 0...4)
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                    .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
-                    .disabled(!isSending || simulator?.isRunning ?? false)
-                    .listRowSeparator(.hidden)
+                // MARK: Destinations
                 
-                if notificationManager.type == .binarySprayAndWait {
-                    Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies each" : "and 1 copy each", value: $numberOfCopies, in: 1...15)
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                LazyVGrid(columns: columns) {
+                    ForEach(notificationManager.contacts) { address in
+                        Button(action: {
+                            if destinations.contains(address) && destinations.count > 1 {
+                                destinations.remove(address)
+                            } else {
+                                destinations.insert(address)
+                            }
+                        }) {
+                            Text(address.name ?? address.base58Encoded)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                                .background(destinations.contains(address) ? Color("bleepPrimary") : Color("bleepSecondary"))
+                                .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                                .cornerRadius(Dimensions.cornerRadius)
+                        }
                         .disabled(simulator?.isRunning ?? false)
-                        .listRowSeparator(.hidden)
-                        .onChange(of: numberOfCopies, initial: true) { try! notificationManager.setNumberOfCopies(to: UInt8(numberOfCopies)) }
-                }
-            }
-            
-            HStack {
-                Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
-                Button(action: {
-                    if countdownTimerIsActive {
-                        Logger.view.trace("View attempts to cancel the simulation")
-                        resetCountdown()
-                    } else if !(simulator?.isRunning ?? false) {
-                        Logger.view.trace("View attempts to start a new simulation")
-                        simulator = try! Simulator(notificationManager: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), varianceFactor: UInt8(varianceFactor), destinations: destinations)
-                        startCountdown()
-                    } else {
-                        Logger.view.trace("View attempts to stop the simulation")
-                        simulator!.stop()
                     }
-                }) {
-                    Text(countdownTimerIsActive ? String(remainingCountdownTime) : (simulator?.isRunning ?? false ? "Stop" : "Start"))
-                        .lineLimit(1)
-                        .frame(maxWidth: buttonWidth, minHeight: Dimensions.singleLineHeight)
-                        .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .background(simulator?.isRunning ?? false ? Color("bleepPrimary") : Color("bleepSecondary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(Dimensions.cornerRadius)
-                        .onChange(of: remainingCountdownTime, initial: true) { adjustButtonWidth() }
                 }
-                Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
-            }
-            .listRowSeparator(.hidden)
-            
-            HStack {
-                Spacer()
-                Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
-                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                Spacer()
-            }
-            .listRowSeparator(.hidden)
-            
-            if let logFileURL = simulator?.logFileURL {
-                ShareLink(item: logFileURL, preview: SharePreview(logFileURL.lastPathComponent, image: Image(systemName: "doc.text"))) {
-                    Text("Share log file")
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                .padding(.horizontal)
+                
+                // MARK: Parameters
+                
+                List {
+                    
+                    Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .background(Color("bleepPrimary"))
-                        .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                        .cornerRadius(Dimensions.cornerRadius)
+                        .foregroundColor(Color("bleepPrimary"))
+                        .listRowSeparator(.hidden)
+                        .disabled(simulator?.isRunning ?? false)
+                    
+                    Button(action: { withAnimation { showRSSIOverlay.toggle() } }) {
+                        Stepper("RSSI threshold: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimary"))
+                            .listRowSeparator(.hidden)
+                            .disabled(simulator?.isRunning ?? false)
+                            .onChange(of: rssiThresholdFactor, initial: true) { notificationManager.rssiThreshold = Int8(rssiThresholdFactor * 8) }
+                    }
+                    
+                    HStack {
+                        Text(isSending ? "Receive and" : "Receive only")
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimary"))
+                        Toggle("", isOn: $isSending)
+                            .padding(.trailing, Dimensions.largePadding)
+                            .tint(Color("bleepPrimary"))
+                            .disabled(simulator?.isRunning ?? false)
+                    }
+                    .listRowSeparator(.hidden)
+                    
+                    if isSending {
+                        Stepper(frequency > 1 ? "send every \(frequency) seconds" : "send every second", value: $frequency, in: 1...60)
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                            .disabled(!isSending)
+                            .listRowSeparator(.hidden)
+                            .disabled(simulator?.isRunning ?? false)
+                        
+                        Stepper("with ±\(varianceFactor * 25)% variance", value: $varianceFactor, in: 0...4)
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                            .disabled(!isSending || simulator?.isRunning ?? false)
+                            .listRowSeparator(.hidden)
+                        
+                        if notificationManager.type == .binarySprayAndWait {
+                            Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies each" : "and 1 copy each", value: $numberOfCopies, in: 1...15)
+                                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                                .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
+                                .disabled(simulator?.isRunning ?? false)
+                                .listRowSeparator(.hidden)
+                                .onChange(of: numberOfCopies, initial: true) { try! notificationManager.setNumberOfCopies(to: UInt8(numberOfCopies)) }
+                        }
+                    }
+                    
+                    HStack {
+                        Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
+                        Button(action: {
+                            if countdownTimerIsActive {
+                                Logger.view.trace("View attempts to cancel the simulation")
+                                resetCountdown()
+                            } else if !(simulator?.isRunning ?? false) {
+                                Logger.view.trace("View attempts to start a new simulation")
+                                simulator = try! Simulator(notificationManager: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), varianceFactor: UInt8(varianceFactor), destinations: destinations)
+                                startCountdown()
+                            } else {
+                                Logger.view.trace("View attempts to stop the simulation")
+                                simulator!.stop()
+                            }
+                        }) {
+                            Text(countdownTimerIsActive ? String(remainingCountdownTime) : (simulator?.isRunning ?? false ? "Stop" : "Start"))
+                                .lineLimit(1)
+                                .frame(maxWidth: buttonWidth, minHeight: Dimensions.singleLineHeight)
+                                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                                .background(simulator?.isRunning ?? false ? Color("bleepPrimary") : Color("bleepSecondary"))
+                                .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                                .cornerRadius(Dimensions.cornerRadius)
+                                .onChange(of: remainingCountdownTime, initial: true) { adjustButtonWidth() }
+                        }
+                        Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
+                    }
+                    .listRowSeparator(.hidden)
+                    
+                    HStack {
+                        Spacer()
+                        Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        Spacer()
+                    }
+                    .listRowSeparator(.hidden)
+                    
+                    if let logFileURL = simulator?.logFileURL {
+                        ShareLink(item: logFileURL, preview: SharePreview(logFileURL.lastPathComponent, image: Image(systemName: "doc.text"))) {
+                            Text("Share log file")
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                                .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                                .background(Color("bleepPrimary"))
+                                .cornerRadius(Dimensions.cornerRadius)
+                        }
+                        .listRowSeparator(.hidden)
+                    }
                 }
-                .listRowSeparator(.hidden)
+                .listStyle(.plain)
+                .scrollDisabled(true)
+            }
+            
+            // MARK: Overlay
+            
+            if showRSSIOverlay {
+                
+//                GeometryReader { geometry in
+//                    Color("bleepPrimary").opacity(0.3)
+//                        .frame(height: geometry.size.height)
+//                        .edgesIgnoringSafeArea(.all)
+//                        .onTapGesture { showRSSIOverlay.toggle() }
+//                }
+                
+                VStack {
+                    Text("Last measured RSSI value: \(notificationManager.lastRSSIValue ?? 0) dBm")
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .foregroundColor(Color("bleepPrimary"))
+                        .padding(Dimensions.largePadding)
+                    Button(action: {
+                        rssiThresholdFactor = suggestedRSSIThresholdFactor
+                        notificationManager.rssiThreshold = Int8(suggestedRSSIThresholdFactor * 8)
+                        showRSSIOverlay.toggle()
+                        
+                    }) {
+                        Text("Set RSSI threshold to \(suggestedRSSIThresholdFactor * 8) dBm")
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                            .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                            .background(Color("bleepPrimary"))
+                            .cornerRadius(Dimensions.cornerRadius)
+                            .padding([.leading, .trailing, .bottom], Dimensions.largePadding)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .background(Color("bleepBackground"))
+                .cornerRadius(Dimensions.cornerRadius)
+                .shadow(color: Color("bleepPrimary"), radius: Dimensions.shadowRadius)
+                .padding(Dimensions.mediumPadding)
+                .onChange(of: notificationManager.lastRSSIValue, initial: true, { suggestedRSSIThresholdFactor = Int(notificationManager.lastRSSIValue ?? Int8(rssiThresholdFactor * 8)) / 8 - 1} )
             }
         }
-        .listStyle(.plain)
-        .scrollDisabled(true)
     }
 }

@@ -145,9 +145,12 @@ struct NotificationView: View {
         Button(action: {
             showsMetadata.toggle()
         }) {
-            Text(displayText)
-                .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                .foregroundColor(Color("bleepPrimary"))
+            HStack {
+                Text(displayText)
+                    .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                    .foregroundColor(Color("bleepPrimary"))
+                Spacer()
+            }
         }
     }
 
@@ -155,7 +158,8 @@ struct NotificationView: View {
         if showsMetadata {
             return notification.description
         } else {
-            return notification.protocolValue > 1 ? "(\(15/notification.sequenceNumberValue)) " : "" + notification.message
+            // TODO: Better way to calculate hops?
+            return (notification.protocolValue > 1 ? "(\(Utils.initialNumberOfCopies/notification.sequenceNumberValue-1)) " : "") + notification.message
         }
     }
 }

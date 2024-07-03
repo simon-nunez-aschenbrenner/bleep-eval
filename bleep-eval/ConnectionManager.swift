@@ -19,10 +19,9 @@ protocol ConnectionManager {
     init(notificationManager: NotificationManager)
     
     func advertise(with randomIdentifier: String?)
-    func transmit(notification data: Data) -> Bool
-    func acknowledge(hashedID data: Data)
+    func transmit(_ data: Data) -> Bool
+    func acknowledge(_ data: Data)
     func disconnect()
-    
 }
 
 // MARK: BluetoothManager
@@ -66,7 +65,7 @@ class BluetoothManager: ConnectionManager {
     }
     
     func advertise(with randomIdentifier: String? = nil) {
-        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) \(randomIdentifier != nil ? "'\(randomIdentifier!)'" : "no randomIdentifier")")
         if randomIdentifier != nil {
             self.randomIdentifier = randomIdentifier!
             Logger.bluetooth.trace("BluetoothManager set its randomIdentifier to '\(self.randomIdentifier)'")
@@ -78,12 +77,12 @@ class BluetoothManager: ConnectionManager {
         recentRandomIdentifiers.insert(randomIdentifier)
     }
     
-    func transmit(notification data: Data) -> Bool {
+    func transmit(_ data: Data) -> Bool {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
-    func acknowledge(hashedID data: Data) {
+    func acknowledge(_ data: Data) {
         Logger.bluetooth.debug("BluetoothManager attempts to \(#function) #\(Utils.printID(data))")
         guard let peripheral = centralManagerDelegate.peripheral else { // TODO: throw
             Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")

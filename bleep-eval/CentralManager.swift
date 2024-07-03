@@ -33,26 +33,12 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         Logger.central.trace("CentralManagerDelegate initialized")
     }
     
-    deinit {
-        Logger.central.trace("CentralManagerDelegate deinitializes")
-        if centralManager.state == .poweredOn {
-            if let peripheral = self.peripheral {
-                centralManager.cancelPeripheralConnection(peripheral)
-            }
-            centralManager.stopScan()
-        }
-        centralManager.delegate = nil
-        centralManager = nil
-        bluetoothManager = nil
-        notificationManager = nil
-    }
-    
     // MARK: public methods
         
     func scan() {
-        Logger.central.debug("Central may attempt to \(#function): peripheral=\(self.peripheral == nil ? "nil" : "!nil"), \(self.centralManager.state == .poweredOn ? "poweredOn" : "!poweredOn"), \(self.centralManager.isScanning ? "isScanning" : "!isScanning")")
+        Logger.central.debug("Central may attempt to \(#function)")
         guard peripheral == nil && centralManager.state == .poweredOn else {
-            Logger.central.warning("Central won't attempt to \(#function)")
+            Logger.central.warning("Central won't attempt to \(#function): peripheral \(self.peripheral == nil ? "== nil" : "!= nil"), centralManager.state \(self.centralManager.state == .poweredOn ? "== poweredOn" : "!= poweredOn")")
             return
         }
         if centralManager.isScanning { centralManager.stopScan() } // TODO: needed?
@@ -151,7 +137,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
-        Logger.central.error("\(#function): \(invalidatedServices)")
+        Logger.central.error("Central will disconnect peripheral '\(Utils.printID(peripheral.identifier.uuidString))' because it didModifyServices: \(invalidatedServices)")
         centralManager.cancelPeripheralConnection(peripheral)
     }
     
@@ -191,6 +177,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             return
         }
         Logger.central.info("Central successfully subscribed to '\(BluetoothManager.getName(of: self.notificationSourceUUID))' for '\(BluetoothManager.getName(of: service.uuid))' on peripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
+        notificationManager.isReadyToAdvertise = false
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -235,7 +222,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
         Logger.central.info("Central didDisconnectPeripheral '\(Utils.printID(peripheral.identifier.uuidString))'")
         peripheral.delegate = nil
         self.peripheral = nil
+        notificationManager.isReadyToAdvertise = true
         scan()
     }
-
 }

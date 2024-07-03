@@ -16,9 +16,9 @@ struct SimulationView: View {
     @State private var simulator: Simulator?
     @State private var runID: Int = 0
     @State private var rssiThresholdFactor: Int = -8
-    @State private var isSending: Bool = false
-    @State private var frequency: Int = 4
-    @State private var varianceFactor: Int = 2
+    @State private var isSending: Bool = true
+    @State private var frequency: Int = 1
+    @State private var varianceFactor: Int = 4
     @State private var numberOfCopies: Int = 15
     @State private var destinations: Set<Address>
     
@@ -26,7 +26,7 @@ struct SimulationView: View {
     @State private var remainingCountdownTime: Int = Utils.initialCountdownTime
     @State private var countdownTimerIsActive: Bool = false
     @State private var buttonWidth: CGFloat = .infinity
-    @State private var showRSSIOverlay: Bool = false
+    @State private var showRSSITool: Bool = false
     @State private var suggestedRSSIThresholdFactor: Int = 0
         
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
@@ -40,8 +40,8 @@ struct SimulationView: View {
         Logger.view.trace("View attempts to \(#function)")
         countdownTimerIsActive = true
         countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect().sink { _ in
-            if self.remainingCountdownTime > 0 {
-                self.remainingCountdownTime -= 1
+            if remainingCountdownTime > 1 {
+                remainingCountdownTime -= 1
             } else {
                 simulator?.start()
                 resetCountdown()
@@ -58,7 +58,7 @@ struct SimulationView: View {
     
     private func adjustButtonWidth() {
         let initialWidth: CGFloat = UIScreen.main.bounds.width
-        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime + 1) * initialWidth / (CGFloat(Utils.initialCountdownTime) * 1.4)
+        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime) * initialWidth / CGFloat(Utils.initialCountdownTime)
         withAnimation { buttonWidth = newWidth }
     }
     
@@ -92,9 +92,9 @@ struct SimulationView: View {
                 }
                 .padding(.horizontal)
                 
-                // MARK: Parameters
-                
                 List {
+                    
+                    // MARK: runID
                     
                     Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
@@ -102,7 +102,9 @@ struct SimulationView: View {
                         .listRowSeparator(.hidden)
                         .disabled(simulator?.isRunning ?? false)
                     
-                    Button(action: { withAnimation { showRSSIOverlay.toggle() } }) {
+                    // MARK: RSSI
+                    
+                    Button(action: { withAnimation { showRSSITool.toggle() } }) {
                         Stepper("RSSI threshold: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
                             .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                             .foregroundColor(Color("bleepPrimary"))
@@ -110,6 +112,32 @@ struct SimulationView: View {
                             .disabled(simulator?.isRunning ?? false)
                             .onChange(of: rssiThresholdFactor, initial: true) { notificationManager.rssiThreshold = Int8(rssiThresholdFactor * 8) }
                     }
+                    
+                    if showRSSITool {
+                        Text("Last measured RSSI value: \(notificationManager.lastRSSIValue ?? 0) dBm")
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimary"))
+                            .listRowSeparator(.hidden)
+                        Button(action: {
+                            rssiThresholdFactor = suggestedRSSIThresholdFactor
+                            notificationManager.rssiThreshold = Int8(suggestedRSSIThresholdFactor * 8)
+                            showRSSITool.toggle()
+                            
+                        }) {
+                            Text("Set RSSI threshold to \(suggestedRSSIThresholdFactor * 8) dBm")
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
+                                .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
+                                .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
+                                .background(simulator?.isRunning ?? false ? Color("bleepSecondary") : Color("bleepPrimary"))
+                                .cornerRadius(Dimensions.cornerRadius)
+                                .listRowSeparator(.hidden)
+                                .onChange(of: notificationManager.lastRSSIValue, initial: true, { suggestedRSSIThresholdFactor = Int(notificationManager.lastRSSIValue ?? Int8(rssiThresholdFactor * 8)) / 8 - 1 } )
+                        }
+                        .disabled(simulator?.isRunning ?? false)
+                    }
+                    
+                    // MARK: Sending
                     
                     HStack {
                         Text(isSending ? "Receive and" : "Receive only")
@@ -146,6 +174,8 @@ struct SimulationView: View {
                         }
                     }
                     
+                    // MARK: Start/Stop
+                    
                     HStack {
                         Spacer(minLength: /*@START_MENU_TOKEN@*/0/*@END_MENU_TOKEN@*/)
                         Button(action: {
@@ -158,7 +188,7 @@ struct SimulationView: View {
                                 startCountdown()
                             } else {
                                 Logger.view.trace("View attempts to stop the simulation")
-                                simulator!.stop()
+                                simulator?.stop()
                             }
                         }) {
                             Text(countdownTimerIsActive ? String(remainingCountdownTime) : (simulator?.isRunning ?? false ? "Stop" : "Start"))
@@ -182,6 +212,8 @@ struct SimulationView: View {
                     }
                     .listRowSeparator(.hidden)
                     
+                    // MARK: Share
+                    
                     if let logFileURL = simulator?.logFileURL {
                         ShareLink(item: logFileURL, preview: SharePreview(logFileURL.lastPathComponent, image: Image(systemName: "doc.text"))) {
                             Text("Share log file")
@@ -197,46 +229,6 @@ struct SimulationView: View {
                 }
                 .listStyle(.plain)
                 .scrollDisabled(true)
-            }
-            
-            // MARK: Overlay
-            
-            if showRSSIOverlay {
-                
-//                GeometryReader { geometry in
-//                    Color("bleepPrimary").opacity(0.3)
-//                        .frame(height: geometry.size.height)
-//                        .edgesIgnoringSafeArea(.all)
-//                        .onTapGesture { showRSSIOverlay.toggle() }
-//                }
-                
-                VStack {
-                    Text("Last measured RSSI value: \(notificationManager.lastRSSIValue ?? 0) dBm")
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .foregroundColor(Color("bleepPrimary"))
-                        .padding(Dimensions.largePadding)
-                    Button(action: {
-                        rssiThresholdFactor = suggestedRSSIThresholdFactor
-                        notificationManager.rssiThreshold = Int8(suggestedRSSIThresholdFactor * 8)
-                        showRSSIOverlay.toggle()
-                        
-                    }) {
-                        Text("Set RSSI threshold to \(suggestedRSSIThresholdFactor * 8) dBm")
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
-                            .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
-                            .foregroundColor(Color("bleepPrimaryOnPrimaryBackground"))
-                            .background(Color("bleepPrimary"))
-                            .cornerRadius(Dimensions.cornerRadius)
-                            .padding([.leading, .trailing, .bottom], Dimensions.largePadding)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .background(Color("bleepBackground"))
-                .cornerRadius(Dimensions.cornerRadius)
-                .shadow(color: Color("bleepPrimary"), radius: Dimensions.shadowRadius)
-                .padding(Dimensions.mediumPadding)
-                .onChange(of: notificationManager.lastRSSIValue, initial: true, { suggestedRSSIThresholdFactor = Int(notificationManager.lastRSSIValue ?? Int8(rssiThresholdFactor * 8)) / 8 - 1} )
             }
         }
     }

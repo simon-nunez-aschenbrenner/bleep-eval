@@ -86,7 +86,7 @@ struct ManualView: View {
                     Group { if draft.isEmpty {
                         Text("Select recipient and enter message")
                         .font(.custom(Font.BHTCaseText.Regular, size: Font.Size.Text))
-                        .foregroundColor(Color.gray)
+                        .foregroundColor(Color("bleepSecondary"))
                         .padding(.leading, Dimensions.mediumPadding + Dimensions.smallPadding + Dimensions.lineWidth)
                         }
                     },

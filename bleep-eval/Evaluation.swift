@@ -53,13 +53,13 @@ class Simulator {
     }
     
     private func schedule(_ timer: DispatchSourceTimer) {
-        Logger.evaluation.trace("Simulator attempts to \(#function)")
+        Logger.evaluation.trace("Simulator attempts to \(#function) sending a notification")
         let frequency = Double(self.frequency)
         let variance = Double(self.variance)
         let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
-            self.notificationManager.send(Utils.generateText(with: Int.random(in: 50...100)), to: self.destinations.randomElement()!)
+            self.notificationManager.send(Utils.generateText(with: Int.random(in: 50...100), testPattern: false), to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }
@@ -118,11 +118,10 @@ class EvaluationLogger {
         stringBuilder.append(String(self.runID))
         stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
         stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
-        var status: String = "0" // unknown
-        if notification.receivedTimestamp == nil { status = "1" } // sent
+        var status: String = "0" // undefined
+        if notification.receivedTimestamp == nil { status = "1" } // created
         else if address.hashed == notification.hashedSourceAddress { status = "2" } // forwarded
         else if address.hashed == notification.hashedDestinationAddress { status = "3" } // received
-        if notification.destinationControlValue == 0 { status = "4" } // arrived
         stringBuilder.append(status)
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
@@ -134,8 +133,6 @@ class EvaluationLogger {
         stringBuilder.append(notification.hashedDestinationAddress.base64EncodedString())
         stringBuilder.append(notification.receivedTimestamp != nil ? String(notification.receivedTimestamp!.timeIntervalSinceReferenceDate as Double) : "")
         stringBuilder.append(String(notification.message.count)) // 0...419
-        assert(status != "1" || address.hashed == notification.hashedSourceAddress)
-        assert(status != "2" || address.hashed == notification.hashedDestinationAddress)
         let logEntry: String = stringBuilder.joined(separator: ";")
         Logger.evaluation.debug("EvaluationLogger attempts to append logEntry '\(logEntry)'")
         let logEntryData = logEntry.appending("\n").data(using: .utf8)

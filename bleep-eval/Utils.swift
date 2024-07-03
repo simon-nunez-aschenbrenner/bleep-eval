@@ -70,7 +70,7 @@ struct Utils {
 
     static let suffixLength: Int = 5
     static let initialNumberOfCopies: UInt8 = 15
-    static let initialCountdownTime = 10
+    static let initialCountdownTime = 3
     
     static func generateText(with length: Int, testPattern: Bool = true) -> String {
         var end = " // This test message contains \(length) ASCII characters"

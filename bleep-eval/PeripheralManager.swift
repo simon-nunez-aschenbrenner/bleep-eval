@@ -19,9 +19,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     var service: CBMutableService!
     var notificationSource: CBMutableCharacteristic!
     var notificationAcknowledgement: CBMutableCharacteristic!
-    
-    var central: CBCentral? // TODO: multiple centrals
-        
+            
     // MARK: initializing methods
     
     init(notificationManager: NotificationManager, bluetoothManager: BluetoothManager) {
@@ -36,24 +34,12 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.trace("PeripheralManagerDelegate initialized")
     }
     
-    deinit {
-        Logger.peripheral.trace("PeripheralManagerDelegate deinitializes")
-        if peripheralManager.state == .poweredOn {
-            peripheralManager.stopAdvertising()
-            peripheralManager.removeAllServices()
-        }
-        peripheralManager.delegate = nil
-        peripheralManager = nil
-        bluetoothManager = nil
-        notificationManager = nil
-    }
-    
     // MARK: public methods
     
     func advertise() {
-        Logger.peripheral.debug("Peripheral may attempt to \(#function): central=\(self.central == nil ? "nil" : "!nil"), \(self.peripheralManager.state == .poweredOn ? "poweredOn" : "!poweredOn"), \(self.peripheralManager.isAdvertising ? "isAdvertising" : "!isAdvertising")")
-        guard central == nil && peripheralManager.state == .poweredOn else {
-            Logger.peripheral.warning("Peripheral won't attempt to \(#function)")
+        Logger.peripheral.debug("Peripheral may attempt to \(#function)")
+        guard peripheralManager.state == .poweredOn else {
+            Logger.peripheral.warning("Peripheral won't attempt to \(#function): peripheralManager.state \(self.peripheralManager.state == .poweredOn ? "== poweredOn" : "!= poweredOn")")
             return
         }
         if peripheralManager.isAdvertising { peripheralManager.stopAdvertising() } // TODO: needed?
@@ -133,19 +119,16 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
-        self.central = central
         peripheralManager.setDesiredConnectionLatency(.low, for: central)
         notificationManager.transmitNotifications()
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didUnsubscribeFrom characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
-        self.central = nil
     }
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         Logger.peripheral.debug("\(#function):toUpdateSubscribers")
         notificationManager.transmitNotifications()
     }
-    
 }

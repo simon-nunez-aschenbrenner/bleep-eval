@@ -20,7 +20,8 @@ protocol NotificationManager: AnyObject {
     var receivedHashedIDs: Set<Data>! { get }
     func setNumberOfCopies(to value: UInt8) throws
 
-    var type: NotificationManagerType!{ get set }
+    var type: NotificationManagerType! { get set }
+    var isReadyToAdvertise: Bool! { get set }
     var address: Address! { get }
     var contacts: [Address]! { get }
     var maxMessageLength: Int! { get }
@@ -53,18 +54,11 @@ class BleepManager: NotificationManager {
     let minNotificationLength: Int = 105
     let acknowledgementLength: Int = 32
     
-    var type: NotificationManagerType! {
-        didSet {
-            Logger.notification.info("NotificationManager type set to '\(self.type.description)'")
-        }
-    }
+    var type: NotificationManagerType! { didSet { Logger.notification.info("NotificationManager type set to '\(self.type.description)'") } }
     var evaluationLogger: EvaluationLogger?
-    var rssiThreshold: Int8! = -128 {
-        didSet {
-            Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold)")
-        }
-    }
+    var rssiThreshold: Int8! = -128 { didSet { Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold)") } }
     var lastRSSIValue: Int8?
+    var isReadyToAdvertise: Bool! = true { didSet { Logger.notification.debug("NotificationManager \(self.isReadyToAdvertise ? "isReadyToAdvertise" : "is not readyToAdvertise")") } }
     
     private(set) var maxMessageLength: Int!
     private(set) var address: Address!
@@ -72,17 +66,8 @@ class BleepManager: NotificationManager {
     private(set) var inbox: [Notification]! = []
     private(set) var receivedHashedIDs: Set<Data>! = []
     
-    private var numberOfCopies: UInt8! { // L
-        didSet {
-            Logger.notification.debug("NotificationManager numberOfCopies set to \(self.numberOfCopies)")
-        }
-    }
+    private var numberOfCopies: UInt8! { didSet { Logger.notification.debug("NotificationManager numberOfCopies set to \(self.numberOfCopies)") } } // L
     private var transmitQueue: [Notification: Bool]! = [:]
-//    private var isTransmitting: Bool = false {
-//        didSet {
-//            Logger.notification.trace("NotificationManager isTransmitting=\(self.isTransmitting)")
-//        }
-//    }
     private var connectionManager: ConnectionManager!
     private var container: ModelContainer!
     private var context: ModelContext!
@@ -198,6 +183,7 @@ class BleepManager: NotificationManager {
             evaluationLogger!.log(notification, at: self.address)
         }
         insert(notification)
+        advertise()
     }
     
     func receiveAcknowledgement(_ data: Data) -> Bool {
@@ -284,13 +270,19 @@ class BleepManager: NotificationManager {
             controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: numberOfCopies)
         }
         insert(Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: destinationAddress, message: message))
+        advertise()
+    }
+    
+    private func advertise() {
+        Logger.notification.trace("NotificationManager may attempt to \(#function)")
+        if isReadyToAdvertise { connectionManager.advertise(with: String(Address().base58Encoded.suffix(8))) }
     }
     
     func transmitNotifications() {
         Logger.notification.trace("NotificationManager may attempt to \(#function)")
+        isReadyToAdvertise = false
         if transmitQueue.isEmpty { populateTransmitQueue() }
         Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.transmitQueue.values.filter { !$0 }.count)/\(self.transmitQueue.count) notifications in the transmitQueue")
-//        isTransmitting = true
         for element in transmitQueue {
             guard !element.value else {
                 Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(element.key.hashedID)) because it was already transmitted")
@@ -309,8 +301,14 @@ class BleepManager: NotificationManager {
             }
         }
         Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop successfully")
-        transmitEndOfNotificationsSignal()
-//        isTransmitting = false
+        if transmitEndOfNotificationsSignal() {
+            Logger.notification.info("NotificationManager successfully transmitted endOfNotificationsSignal, will remove all notifications from the sendQueue and eventually start to advertise again")
+            self.transmitQueue.removeAll()
+            isReadyToAdvertise = true
+        } else {
+            Logger.notification.warning("NotificationManager did not transmit endOfNotificationsSignal")
+            return // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
+        }
     }
     
     private func transmit(_ notification: Notification) -> Bool {
@@ -337,7 +335,7 @@ class BleepManager: NotificationManager {
         data.append(notification.sentTimestampData)
         assert(data.count == minNotificationLength)
         if let messageData = notification.message.data(using: .utf8) { data.append(messageData) }
-        if connectionManager.transmit(notification: data) {
+        if connectionManager.transmit(data) {
             Logger.notification.info("NotificationManager successfully transmitted notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
             return true
         } else {
@@ -346,21 +344,14 @@ class BleepManager: NotificationManager {
         }
     }
     
-    private func transmitEndOfNotificationsSignal() {
+    private func transmitEndOfNotificationsSignal() -> Bool {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
         let controlByte = try! ControlByte(protocolValue: self.type.rawValue, destinationControlValue: 0, sequenceNumberValue: 0)
         var data = Data()
         data.append(controlByte.value)
         data.append(Data(count: minNotificationLength-data.count))
         assert(data.count == minNotificationLength)
-        if connectionManager.transmit(notification: data) {
-            Logger.notification.info("NotificationManager successfully transmitted \(data.count) zeros and will remove all notifications from the sendQueue")
-            self.transmitQueue.removeAll()
-            // TODO: wait to receive didUnsubscribe?
-        } else {
-            Logger.notification.warning("NotificationManager did not transmit \(data.count) zeros")
-            // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
-        }
+        return connectionManager.transmit(data)
     }
     
     private func populateTransmitQueue() {
@@ -376,16 +367,8 @@ class BleepManager: NotificationManager {
     
     private func acknowledge(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) #\(Utils.printID(notification.hashedID))")
-        connectionManager.acknowledge(hashedID: notification.hashedID)
+        connectionManager.acknowledge(notification.hashedID)
     }
-    
-//    private func waitForEndOfTransmission() async {
-//        Task {
-//            while isTransmitting {
-//                try? await Task.sleep(nanoseconds: 2_000_000_000) // TODO: adjust
-//            }
-//        }
-//    }
     
     // MARK: persisting
     
@@ -393,10 +376,6 @@ class BleepManager: NotificationManager {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
         context.insert(notification)
         save()
-//        Task {
-//            await waitForEndOfTransmission()
-//        }
-        connectionManager.advertise(with: String(Address().base58Encoded.suffix(8)))
     }
     
     private func fetchAll() -> [Notification]? {

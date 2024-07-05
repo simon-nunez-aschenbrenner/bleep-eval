@@ -201,15 +201,17 @@ class BleepManager: NotificationManager {
             return
         }
         Logger.notification.info("NotificationManager accepted notification \(notification.description) with message: '\(notification.message)'")
+        if evaluationLogger == nil {
+            Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
+        } else {
+            notification.message = String((Int(notification.message) ?? Int.min) + 1) // Increment hop count
+            Logger.notification.info("NotificationManager did increment hop count of notification #\(Utils.printID(hashedID))")
+            evaluationLogger!.log(notification, at: address)
+        }
         if notification.hashedDestinationAddress == address.hashed {
             try! notification.setDestinationControl(to: 0)
             Logger.notification.info("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because it reached its destination")
             inbox.append(notification)
-        }
-        if evaluationLogger == nil {
-            Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
-        } else {
-            evaluationLogger!.log(notification, at: address)
         }
         insert(notification)
         if isReadyToAdvertise { connectionManager.advertise() }

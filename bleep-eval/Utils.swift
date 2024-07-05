@@ -69,17 +69,17 @@ struct Utils {
     ]
 
     static let suffixLength: Int = 5
-    static let initialNumberOfCopies: UInt8 = 15
-    static let initialCountdownTime = 3
     
     static func generateText(with length: Int, testPattern: Bool = true) -> String {
+        var length = length
         var end = " // This test message contains \(length) ASCII characters"
         if testPattern {
             end += ". The last visible digit indicates the number of characters missing: 9876543210"
         }
         var result = ""
         if end.count > length {
-            result = String(end.suffix(length))
+            if testPattern { result = String(end.suffix(length)) }
+            else { length = end.count }
         } else {
             for _ in 0..<length - end.count {
                 result.append(Character(Unicode.Scalar(UInt8.random(in: 21...126))))

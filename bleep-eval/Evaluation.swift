@@ -15,6 +15,7 @@ class Simulator {
     unowned private var notificationManager: NotificationManager
     private let runID: UInt
     private let isSending: Bool
+    private let countHops: Bool
     private let frequency: UInt
     private let variance: Float
     private let destinations: Set<Address>
@@ -23,11 +24,12 @@ class Simulator {
     private(set) var logFileURL: URL?
     private var timer: DispatchSourceTimer?
     
-    init(notificationManager: NotificationManager, runID: UInt, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, destinations: Set<Address> = []) throws {
+    init(notificationManager: NotificationManager, runID: UInt, countHops: Bool, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, destinations: Set<Address> = []) throws {
         Logger.evaluation.trace("Simulator initializes")
         notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
         self.notificationManager = notificationManager
         self.runID = runID
+        self.countHops = countHops
         self.isSending = isSending
         self.frequency = frequency
         self.variance = min(Float(varianceFactor), 4.0) * 0.25
@@ -59,7 +61,8 @@ class Simulator {
         let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
-            self.notificationManager.send(Utils.generateText(with: Int.random(in: 50...100), testPattern: false), to: self.destinations.randomElement()!)
+            let message = self.countHops ? "0" : Utils.generateText(with: Int.random(in: 0...self.notificationManager.maxMessageLength), testPattern: false)
+            self.notificationManager.send(message, to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }
@@ -109,7 +112,7 @@ class EvaluationLogger {
 
     func log(_ notification: Notification, at address: Address) {
         // log entry format:
-        // deviceName;runID;currentAddress;currentTimestamp;status;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength\n
+        // deviceName;runID;currentAddress;currentTimestamp;status;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength;message/hopCount\n
         let currentTimestamp = Date.now
         Logger.evaluation.trace("EvaluationLogger attempts to log notification #\(Utils.printID(notification.hashedID)) at (\(Utils.printID(address.hashed)))")
         var stringBuilder: [String] = []
@@ -133,6 +136,7 @@ class EvaluationLogger {
         stringBuilder.append(notification.hashedDestinationAddress.base64EncodedString())
         stringBuilder.append(notification.receivedTimestamp != nil ? String(notification.receivedTimestamp!.timeIntervalSinceReferenceDate as Double) : "")
         stringBuilder.append(String(notification.message.count)) // 0...419
+        stringBuilder.append(String(notification.message)) // hop count 0...Int.max
         let logEntry: String = stringBuilder.joined(separator: ";")
         Logger.evaluation.debug("EvaluationLogger attempts to append logEntry '\(logEntry)'")
         let logEntryData = logEntry.appending("\n").data(using: .utf8)

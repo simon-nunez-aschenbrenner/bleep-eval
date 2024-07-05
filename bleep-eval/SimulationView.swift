@@ -12,20 +12,23 @@ import SwiftUI
 
 struct SimulationView: View {
     
+    let initialCountdownTime: Int = 3
+    
     unowned var notificationManager: NotificationManager
     @State private var simulator: Simulator?
     @State private var runID: Int = 0
+    @State private var countHops: Bool = true
     @State private var rssiThresholdFactor: Int = -8
     @State private var notificationTimeToLiveFactor: Int = 5
     @State private var initialRediscoveryIntervalFactor: Int = 1
-    @State private var isSending: Bool = true
-    @State private var frequency: Int = 1
-    @State private var varianceFactor: Int = 4
+    @State private var isSending: Bool = false
+    @State private var frequency: Int = 3
+    @State private var varianceFactor: Int = 2
     @State private var numberOfCopies: Int = 15
     @State private var destinations: Set<Address>
     
     @State private var countdownTimer: AnyCancellable?
-    @State private var remainingCountdownTime: Int = Utils.initialCountdownTime
+    @State private var remainingCountdownTime: Int!
     @State private var countdownTimerIsActive: Bool = false
     @State private var buttonWidth: CGFloat = .infinity
     @State private var showRSSITool: Bool = false
@@ -36,6 +39,7 @@ struct SimulationView: View {
     init(_ notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
         self.destinations = Set(notificationManager.contacts)
+        self.remainingCountdownTime = initialCountdownTime
     }
     
     private func startCountdown() {
@@ -55,12 +59,12 @@ struct SimulationView: View {
         Logger.view.trace("View attempts to \(#function)")
         countdownTimerIsActive = false
         countdownTimer?.cancel()
-        remainingCountdownTime = Utils.initialCountdownTime
+        remainingCountdownTime = initialCountdownTime
     }
     
     private func adjustButtonWidth() {
         let initialWidth: CGFloat = UIScreen.main.bounds.width
-        let newWidth: CGFloat = initialWidth - CGFloat(Utils.initialCountdownTime - remainingCountdownTime) * initialWidth / CGFloat(Utils.initialCountdownTime)
+        let newWidth: CGFloat = initialWidth - CGFloat(initialCountdownTime - remainingCountdownTime) * initialWidth / CGFloat(initialCountdownTime)
         withAnimation { buttonWidth = newWidth }
     }
     
@@ -139,6 +143,17 @@ struct SimulationView: View {
                         .disabled(simulator?.isRunning ?? false)
                     }
                     
+                    HStack {
+                        Text("Count hops")
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimary"))
+                        Toggle("", isOn: $countHops)
+                            .padding(.trailing, Dimensions.largePadding)
+                            .tint(Color("bleepPrimary"))
+                            .disabled(simulator?.isRunning ?? false)
+                    }
+                    .listRowSeparator(.hidden)
+                    
                     Stepper("Notification TTL: \(notificationTimeToLiveFactor) minutes", value: $notificationTimeToLiveFactor, in: 1...16)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
@@ -203,7 +218,7 @@ struct SimulationView: View {
                                 resetCountdown()
                             } else if !(simulator?.isRunning ?? false) {
                                 Logger.view.trace("View attempts to start a new simulation")
-                                simulator = try! Simulator(notificationManager: notificationManager, runID: UInt(runID), isSending: isSending, frequency: UInt(frequency), varianceFactor: UInt8(varianceFactor), destinations: destinations)
+                                simulator = try! Simulator(notificationManager: notificationManager, runID: UInt(runID), countHops: countHops, isSending: isSending, frequency: UInt(frequency), varianceFactor: UInt8(varianceFactor), destinations: destinations)
                                 startCountdown()
                             } else {
                                 Logger.view.trace("View attempts to stop the simulation")

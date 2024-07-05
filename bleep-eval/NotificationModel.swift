@@ -70,7 +70,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     let sentTimestamp: Date!
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
     let receivedTimestamp: Date?
-    let message: String!
+    var message: String! // TODO: should be let when not evaluating
     var lastRediscovery: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") } }
     
     var description: String {

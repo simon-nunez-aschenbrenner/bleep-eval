@@ -128,7 +128,7 @@ struct ManualView: View {
                 .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                 .padding(.horizontal)
             List(notificationManager.inbox.sorted(by: >)) { notification in
-                NotificationView(notification: notification)
+                NotificationView(notification: notification, notificationManager: notificationManager)
             }
             .listStyle(.plain)
             Spacer()
@@ -139,6 +139,7 @@ struct ManualView: View {
 struct NotificationView: View {
     
     let notification: Notification
+    unowned var notificationManager: NotificationManager
     @State private var showsMetadata = false
 
     var body: some View {
@@ -155,11 +156,7 @@ struct NotificationView: View {
     }
 
     private var displayText: String {
-        if showsMetadata {
-            return notification.description
-        } else {
-            // TODO: Better way to calculate hops?
-            return (notification.protocolValue > 1 ? "(\(Utils.initialNumberOfCopies/notification.sequenceNumberValue-1)) " : "") + notification.message
-        }
+        if showsMetadata { return notification.description }
+        else { return notification.message }
     }
 }

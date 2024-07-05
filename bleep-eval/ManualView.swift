@@ -124,7 +124,7 @@ struct ManualView: View {
         // MARK: Notifications
         
         VStack(alignment: .center) {
-            Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
+            Text("Received \(notificationManager.inbox.count)/\(notificationManager.storedHashedIDs.count) notifications")
                 .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                 .padding(.horizontal)
             List(notificationManager.inbox.sorted(by: >)) { notification in

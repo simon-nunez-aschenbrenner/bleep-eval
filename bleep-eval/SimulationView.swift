@@ -170,7 +170,7 @@ struct SimulationView: View {
                                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                                 .disabled(simulator?.isRunning ?? false)
                                 .listRowSeparator(.hidden)
-                                .onChange(of: numberOfCopies, initial: true) { try! notificationManager.setNumberOfCopies(to: UInt8(numberOfCopies)) }
+                                .onChange(of: numberOfCopies, initial: true) { try! notificationManager.setInitialNumberOfCopies(to: UInt8(numberOfCopies)) }
                         }
                     }
                     
@@ -206,7 +206,7 @@ struct SimulationView: View {
                     
                     HStack {
                         Spacer()
-                        Text("Received \(notificationManager.inbox.count)/\(notificationManager.receivedHashedIDs.count) notifications")
+                        Text("Received \(notificationManager.inbox.count)/\(notificationManager.storedHashedIDs.count) notifications")
                             .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         Spacer()
                     }

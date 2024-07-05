@@ -39,7 +39,7 @@ struct MainView: View {
                             notificationManager.type = type
                         }
                     }) {
-                        Text(type.description.suffix(14))
+                        Text(type.description)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, minHeight: Dimensions.singleLineHeight)
                             .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))

@@ -37,7 +37,7 @@ struct ControlByte: Equatable, CustomStringConvertible {
         self.sequenceNumberValue = sequenceNumberValue
     }
     
-    init(value: UInt8) {
+    init(_ value: UInt8) {
         let protocolValue: UInt8 = (value >> 6) & 0b00000011
         let destinationControlValue: UInt8 = (value >> 4) & 0b00000011
         let sequenceNumberValue: UInt8 = value & 0b00001111
@@ -71,6 +71,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
     let receivedTimestamp: Date?
     let message: String!
+    var lastRediscovery: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") } }
     
     var description: String {
         return "#\(Utils.printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
@@ -88,7 +89,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
         self.sentTimestamp = Date()
         self.receivedTimestamp = nil
         self.message = message
-        Logger.notification.debug("Initialized Notification \(self.description) with message '\(self.message)'")
+        Logger.notification.debug("Notification \(self.description) with message '\(self.message)' initialized")
     }
     
     // Used by receiver
@@ -102,7 +103,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
         self.sentTimestamp = Notification.decodeTimestamp(data: sentTimestampData)
         self.receivedTimestamp = Date()
         self.message = message
-        Logger.notification.debug("Initialized Notification \(self.description) with message '\(self.message)'")
+        Logger.notification.debug("Notification \(self.description) with message '\(self.message)' initialized")
     }
     
     static func encodeTimestamp(date: Date) -> Data {
@@ -133,6 +134,6 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     }
     
     static func < (lhs: Notification, rhs: Notification) -> Bool {
-        return lhs.sentTimestamp < rhs.sentTimestamp
+        return lhs.receivedTimestamp ?? lhs.sentTimestamp < rhs.receivedTimestamp ?? rhs.sentTimestamp
     }
 }

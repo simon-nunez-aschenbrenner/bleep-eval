@@ -18,7 +18,7 @@ protocol ConnectionManager {
     
     init(notificationManager: NotificationManager)
     
-    func advertise(with randomIdentifier: String?)
+    func advertise()
     func transmit(_ data: Data) -> Bool
     func acknowledge(_ data: Data)
     func disconnect()
@@ -50,26 +50,21 @@ class BluetoothManager: ConnectionManager {
     
     let maxNotificationLength: Int! = 524
     
-    unowned let notificationManager: NotificationManager
-    private(set) var randomIdentifier: String = "bleeper"
+    private(set) var randomIdentifier: String = String(Address().base58Encoded.suffix(8))
     private(set) var recentRandomIdentifiers: Set<String> = []
     private var peripheralManagerDelegate: PeripheralManagerDelegate! // Provider
     private var centralManagerDelegate: CentralManagerDelegate! // Consumer
         
     required init(notificationManager: NotificationManager) {
         Logger.bluetooth.trace("BluetoothManager initializes")
-        self.notificationManager = notificationManager
         self.peripheralManagerDelegate = PeripheralManagerDelegate(notificationManager: notificationManager, bluetoothManager: self)
         self.centralManagerDelegate = CentralManagerDelegate(notificationManager: notificationManager, bluetoothManager: self)
-        Logger.bluetooth.trace("BluetoothManager initialized")
+        Logger.bluetooth.trace("BluetoothManager initialized with randomIdentifier '\(self.randomIdentifier)'")
     }
     
-    func advertise(with randomIdentifier: String? = nil) {
-        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) \(randomIdentifier != nil ? "'\(randomIdentifier!)'" : "no randomIdentifier")")
-        if randomIdentifier != nil {
-            self.randomIdentifier = randomIdentifier!
-            Logger.bluetooth.trace("BluetoothManager set its randomIdentifier to '\(self.randomIdentifier)'")
-        }
+    func advertise() {
+        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
+        randomIdentifier = String(Address().base58Encoded.suffix(8))
         peripheralManagerDelegate.advertise()
     }
     

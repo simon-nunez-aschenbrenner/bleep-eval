@@ -16,6 +16,8 @@ struct SimulationView: View {
     @State private var simulator: Simulator?
     @State private var runID: Int = 0
     @State private var rssiThresholdFactor: Int = -8
+    @State private var notificationTimeToLiveFactor: Int = 5
+    @State private var initialRediscoveryIntervalFactor: Int = 1
     @State private var isSending: Bool = true
     @State private var frequency: Int = 1
     @State private var varianceFactor: Int = 4
@@ -96,7 +98,7 @@ struct SimulationView: View {
                     
                     // MARK: runID
                     
-                    Stepper("Simulation #\(runID)", value: $runID, in: 0...Int.max)
+                    Stepper("Simulation #\(runID)", value: $runID, in: 0...99)
                         .font(.custom(Font.BHTCaseMicro.Bold, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                         .listRowSeparator(.hidden)
@@ -137,6 +139,23 @@ struct SimulationView: View {
                         .disabled(simulator?.isRunning ?? false)
                     }
                     
+                    Stepper("Notification TTL: \(notificationTimeToLiveFactor) minutes", value: $notificationTimeToLiveFactor, in: 1...16)
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .foregroundColor(Color("bleepPrimary"))
+                        .disabled(simulator?.isRunning ?? false)
+                        .listRowSeparator(.hidden)
+                        .onChange(of: notificationTimeToLiveFactor, initial: true) { notificationManager.notificationTimeToLive = TimeInterval(notificationTimeToLiveFactor * 60) }
+                    
+                    
+                    if notificationManager.type == .disconnectedTransitiveCommunication {
+                        Stepper("Initial RDI: \(initialRediscoveryIntervalFactor * 10) seconds", value: $initialRediscoveryIntervalFactor, in: 1...16)
+                            .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                            .foregroundColor(Color("bleepPrimary"))
+                            .disabled(simulator?.isRunning ?? false)
+                            .listRowSeparator(.hidden)
+                            .onChange(of: initialRediscoveryIntervalFactor, initial: true) { notificationManager.initialRediscoveryInterval = TimeInterval(initialRediscoveryIntervalFactor * 10) }
+                    }
+                    
                     // MARK: Sending
                     
                     HStack {
@@ -151,7 +170,7 @@ struct SimulationView: View {
                     .listRowSeparator(.hidden)
                     
                     if isSending {
-                        Stepper(frequency > 1 ? "send every \(frequency) seconds" : "send every second", value: $frequency, in: 1...60)
+                        Stepper(frequency > 1 ? "send every \(frequency) seconds" : "send every second", value: $frequency, in: 1...160)
                             .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                             .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                             .disabled(!isSending)
@@ -165,7 +184,7 @@ struct SimulationView: View {
                             .listRowSeparator(.hidden)
                         
                         if notificationManager.type == .binarySprayAndWait {
-                            Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies each" : "and 1 copy each", value: $numberOfCopies, in: 1...15)
+                            Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies each" : "and 1 copy each", value: $numberOfCopies, in: 1...16)
                                 .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                                 .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))
                                 .disabled(simulator?.isRunning ?? false)

@@ -18,6 +18,8 @@ protocol NotificationManager: AnyObject {
     var evaluationLogger: EvaluationLogger? { get set }
     var rssiThreshold: Int8! { get set }
     var lastRSSIValue: Int8? { get set }
+    var notificationTimeToLive: TimeInterval! { get set }
+    var initialRediscoveryInterval: TimeInterval! { get set }
     var storedHashedIDs: Set<Data>! { get }
     func setInitialNumberOfCopies(to value: UInt8) throws
 
@@ -103,7 +105,7 @@ class BleepManager: NotificationManager {
     }
     
     convenience init() {
-        try! self.init(type: .binarySprayAndWait, connectionManagerType: BluetoothManager.self, notificationTimeToLive: 60, initialNumberOfCopies: 16, initialRediscoveryInterval: 60) // TODO: adjust presets
+        try! self.init(type: .binarySprayAndWait, connectionManagerType: BluetoothManager.self, notificationTimeToLive: 300, initialNumberOfCopies: 16, initialRediscoveryInterval: 10) // TODO: adjust presets
     }
     
     func setInitialNumberOfCopies(to value: UInt8) throws {
@@ -323,7 +325,7 @@ class BleepManager: NotificationManager {
         case .binarySprayAndWait:
             controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: initialNumberOfCopies-1)
         case .disconnectedTransitiveCommunication:
-            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: computeUtility(for: destinationAddress.hashed))
+            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: 0)
         }
         insert(Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: destinationAddress, message: message))
         if isReadyToAdvertise { connectionManager.advertise() }
@@ -358,9 +360,15 @@ class BleepManager: NotificationManager {
                 Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because it was already transmitted")
                 continue
             }
-            guard type != .disconnectedTransitiveCommunication || notification.lastRediscovery == nil || notification.lastRediscovery! < Date(timeIntervalSinceNow: -rediscoveryInterval) else {
-                Logger.notification.debug("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because its rediscoveryInterval has not yet elapsed")
-                continue
+            Logger.notification.trace("NotificationManager attempts to transmit notification #\(Utils.printID(notification.hashedID))")
+            if type == .disconnectedTransitiveCommunication {
+                guard notification.lastRediscovery == nil || notification.lastRediscovery! < Date(timeIntervalSinceNow: -rediscoveryInterval) else {
+                    Logger.notification.debug("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because its rediscoveryInterval has not yet elapsed")
+                    continue
+                }
+                let utilityThreshold = computeUtility(for: notification.hashedDestinationAddress)
+                try! notification.setSequenceNumber(to: utilityThreshold)
+                Logger.notification.debug("NotificationManager has setSequenceNumber(to:) utilityThreshold \(utilityThreshold) for notification #\(Utils.printID(notification.hashedID))")
             }
             if transmit(notification) {
                 transmitQueue[notification] = true

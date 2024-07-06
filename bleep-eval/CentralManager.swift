@@ -38,7 +38,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     func scan() {
         Logger.central.debug("Central may attempt to \(#function)")
         guard peripheral == nil && centralManager.state == .poweredOn else {
-            Logger.central.warning("Central won't attempt to \(#function): peripheral \(self.peripheral == nil ? "== nil" : "!= nil"), centralManager.state \(self.centralManager.state == .poweredOn ? "== poweredOn" : "!= poweredOn")")
+            Logger.central.warning("Central won't attempt to \(#function): \(self.peripheral != nil ? "peripheral is not nil" : "")\(self.centralManager.state != .poweredOn ? " centralManager is not poweredOn" : "")")
             return
         }
         if centralManager.isScanning { centralManager.stopScan() } // TODO: needed?
@@ -78,7 +78,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        Logger.central.info("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(Int8(RSSI.int8Value))) and attempts to connect to it")
+        Logger.central.debug("Central didDiscover peripheral '\(Utils.printID(peripheral.identifier.uuidString))' (RSSI: \(Int8(RSSI.int8Value))) and attempts to connect to it")
         notificationManager.lastRSSIValue = Int8(RSSI.int8Value)
         guard Int8(RSSI.int8Value) > notificationManager.rssiThreshold else {
             Logger.central.warning("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as the RSSI \(Int8(RSSI.int8Value)) is below the threshold RSSI \(self.notificationManager.rssiThreshold)")

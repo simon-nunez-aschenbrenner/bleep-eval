@@ -12,7 +12,7 @@ import SwiftData
 import UIKit
 
 @Model
-class Address: Equatable, Comparable, CustomStringConvertible {
+class Address: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     static let base58Alphabet = [UInt8]("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".utf8)
     static let minRawValue: UInt64 = 1 // 0 reserved for Broadcast
@@ -88,6 +88,10 @@ class Address: Equatable, Comparable, CustomStringConvertible {
             result.append(Character(Unicode.Scalar(Address.base58Alphabet[remainder])))
         }
         return String(result.reversed())
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(rawValue)
     }
     
     static func == (lhs: Address, rhs: Address) -> Bool {

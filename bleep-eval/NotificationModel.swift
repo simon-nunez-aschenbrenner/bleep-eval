@@ -65,13 +65,15 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     @Attribute(.unique) let hashedID: Data!
     
-    let hashedSourceAddress: Data!
-    let hashedDestinationAddress: Data!
-    let sentTimestamp: Date!
+    let hashedSourceAddress: Data
+    let hashedDestinationAddress: Data
+    let sentTimestamp: Date
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
     let receivedTimestamp: Date?
-    var message: String! // TODO: should be let when not evaluating
-    var lastRediscovery: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") } }
+    var message: String // TODO: Change to let when not evaluating
+    var lastRediscovery: Date? {
+        didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") }
+    }
     
     var description: String {
         return "#\(Utils.printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"

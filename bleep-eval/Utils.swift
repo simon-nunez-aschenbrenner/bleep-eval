@@ -49,13 +49,14 @@ struct Font {
 struct Dimensions {
     
     static let lineWidth: CGFloat = 1.0
+    static let extraLargePadding: CGFloat = Font.Size.Text * 2
     static let largePadding: CGFloat = Font.Size.Text
     static let mediumPadding: CGFloat = Font.Size.Text * 0.5
     static let smallPadding: CGFloat = Font.Size.Text * 0.25
     static let sendButtonSize: CGFloat = Font.Size.Text * 2
     static let singleLineHeight: CGFloat = Font.Size.Text * 2.5 // sendButtonSize + small vertical padding = Font.Size.Text + small and medium vertical padding
     static let cornerRadius: CGFloat = Font.Size.Text * 1.25 // singleLineHeight/2
-    static let shadowRadius: CGFloat = 15.0
+    static let blurRadius: CGFloat = 4.0
     static let textEditorWidthOffset: CGFloat = 2 * lineWidth + 2 * largePadding + mediumPadding + 3 * smallPadding + sendButtonSize
 }
 
@@ -68,18 +69,16 @@ struct Utils {
         Address("Mm79DuurhxB", name: "D")!
     ]
 
+    static let initialCountdownTime: Int = 3
+    static let resetAddressContext = false
     static let suffixLength: Int = 5
     
     static func generateText(with length: Int, testPattern: Bool = true) -> String {
-        var length = length
-        var end = " // This test message contains \(length) ASCII characters"
-        if testPattern {
-            end += ". The last visible digit indicates the number of characters missing: 9876543210"
-        }
         var result = ""
-        if end.count > length {
-            if testPattern { result = String(end.suffix(length)) }
-            else { length = end.count }
+        var end = ""
+        if testPattern { end = " // This test message contains \(length) ASCII characters. The last visible digit indicates the number of characters missing: 9876543210" }
+        if testPattern && end.count > length {
+            result = String(end.suffix(length))
         } else {
             for _ in 0..<length - end.count {
                 result.append(Character(Unicode.Scalar(UInt8.random(in: 21...126))))

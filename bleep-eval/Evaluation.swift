@@ -13,40 +13,38 @@ import UIKit
 class Simulator {
         
     unowned private var notificationManager: NotificationManager
-    private let runID: UInt
-    private let isSending: Bool
-    private let countHops: Bool
-    private let frequency: UInt
-    private let variance: Float
-    private let destinations: Set<Address>
     
-    private(set) var isRunning: Bool
-    private(set) var logFileURL: URL?
+    private var isSending: Bool = false
+    private var frequency: Double = 0
+    private var variance: Double = 0
+    private var destinations: Set<Address> = []
     private var timer: DispatchSourceTimer?
     
-    init(notificationManager: NotificationManager, runID: UInt, countHops: Bool, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, destinations: Set<Address> = []) throws {
-        Logger.evaluation.trace("Simulator initializes")
-        notificationManager.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
+    private(set) var isRunning: Bool = false
+    private(set) var evaluationLogger: EvaluationLogger?
+    private(set) var logFileURL: URL?
+    
+    init(notificationManager: NotificationManager) {
         self.notificationManager = notificationManager
-        self.runID = runID
-        self.countHops = countHops
+        Logger.evaluation.trace("Simulator initialized")
+    }
+    
+    func prepare(runID: UInt, isSending: Bool, frequency: UInt = 0, varianceFactor: UInt8 = 0, destinations: Set<Address> = []) throws {
+        Logger.evaluation.debug("Simulator attempts to \(#function) with runID \(runID) \(isSending ? "receiving and sending wth frequency=\(frequency)s, variance=±\(Int(self.variance*100))%, destinations=\(destinations)" : "and will only receive")")
+        guard !isSending || !destinations.isEmpty else { throw BleepError.missingDestination }
         self.isSending = isSending
-        self.frequency = frequency
-        self.variance = min(Float(varianceFactor), 4.0) * 0.25
-        guard !destinations.isEmpty else {
-            throw BleepError.missingDestination
-        }
+        self.frequency = Double(frequency)
+        self.variance = min(Double(varianceFactor), 4.0) * 0.25
         self.destinations = destinations
-        self.isRunning = false
-        Logger.evaluation.debug("Simulator initialized with runID=\(runID), isSending=\(isSending)\(isSending ? ", frequency=\(frequency)s, variance=±\(Int(self.variance*100))%, destinations=\(destinations)" : "")")
+        self.logFileURL = nil
+        self.timer?.cancel()
+        self.timer = nil
+        self.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
     }
     
     func start() {
         Logger.evaluation.debug("Simulator attempts to \(#function)")
         isRunning = true
-        logFileURL = nil
-        timer?.cancel()
-        timer = nil
         if isSending {
             timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
             schedule(timer!)
@@ -56,12 +54,10 @@ class Simulator {
     
     private func schedule(_ timer: DispatchSourceTimer) {
         Logger.evaluation.trace("Simulator attempts to \(#function) sending a notification")
-        let frequency = Double(self.frequency)
-        let variance = Double(self.variance)
         let interval = frequency * Double.random(in: 1-variance...1+variance)
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
-            let message = self.countHops ? "0" : Utils.generateText(with: Int.random(in: 0...self.notificationManager.maxMessageLength), testPattern: false)
+            let message: String = self.notificationManager.countHops ? "0" : Utils.generateText(with: Int.random(in: 0...self.notificationManager.maxMessageLength), testPattern: false)
             self.notificationManager.send(message, to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
@@ -69,10 +65,10 @@ class Simulator {
     
     func stop() {
         Logger.evaluation.trace("Simulator attempts to \(#function)")
-        logFileURL = notificationManager.evaluationLogger?.fileURL
+        logFileURL = evaluationLogger?.fileURL
         timer?.cancel()
         timer = nil
-        notificationManager.evaluationLogger = nil
+        evaluationLogger = nil
         isRunning = false
     }
 }

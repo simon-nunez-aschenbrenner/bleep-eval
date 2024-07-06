@@ -11,13 +11,10 @@ import SwiftUI
 
 @main
 struct bleepEvalApp: App {
-    
-    @State private var notificationManager = BleepManager()
 
     var body: some Scene {
         WindowGroup {
             MainView()
-                .environment(notificationManager)
         }
     }
 }

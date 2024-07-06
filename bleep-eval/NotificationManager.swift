@@ -15,20 +15,22 @@ import UIKit
 protocol NotificationManager: AnyObject {
     
     // For simulation/evaluation
-    var evaluationLogger: EvaluationLogger? { get set }
-    var rssiThreshold: Int8! { get set }
+    var simulator: Simulator! { get }
     var lastRSSIValue: Int8? { get set }
-    var notificationTimeToLive: TimeInterval! { get set }
-    var initialRediscoveryInterval: TimeInterval! { get set }
-    var storedHashedIDs: Set<Data>! { get }
+    var rssiThreshold: Int8 { get set }
+    var countHops: Bool { get set }
+    var notificationTimeToLive: TimeInterval { get set }
+    var initialRediscoveryInterval: TimeInterval { get set }
+    var storedHashedIDsCount: Int { get }
     func setInitialNumberOfCopies(to value: UInt8) throws
+    func reset()
 
     var type: NotificationManagerType! { get set }
-    var isReadyToAdvertise: Bool! { get set }
+    var isReadyToAdvertise: Bool { get set }
     var address: Address! { get }
-    var contacts: [Address]! { get }
+    var contacts: [Address] { get }
+    var inbox: [Notification] { get }
     var maxMessageLength: Int! { get }
-    var inbox: [Notification]! { get }
     func receiveNotification(_ data: Data)
     func receiveAcknowledgement(_ data: Data) -> Bool
     func send(_ message: String, to destinationAddress: Address)
@@ -53,67 +55,111 @@ enum NotificationManagerType: UInt8, CaseIterable, Identifiable, CustomStringCon
     }
 }
 
+struct BleepManagerDefault {
+    
+    static let rssiThreshold: Int8 = -128
+    static let countHops: Bool = true
+    static let notificationTimeToLive: TimeInterval = 300
+    static let initialNumberOfCopies: UInt8 = 16
+    static let initialRediscoveryInterval: TimeInterval = 10
+    static let hasResetRediscoveryIntervalSinceLastHello: Bool = false
+    static let isRediscoveryIntervalResetDelayed: Bool = false
+}
+
 @Observable
 class BleepManager: NotificationManager {
     
     let minNotificationLength: Int = 105
     let acknowledgementLength: Int = 32
     
-    var type: NotificationManagerType! { didSet { Logger.notification.info("NotificationManager type set to '\(self.type.description)'") } }
-    var isReadyToAdvertise: Bool! = true { didSet { Logger.notification.debug("NotificationManager \(self.isReadyToAdvertise ? "isReadyToAdvertise" : "is not readyToAdvertise")") } }
+    var type: NotificationManagerType! {
+        didSet { Logger.notification.info("NotificationManager type set to '\(self.type.description)'") }
+    }
+    var isReadyToAdvertise: Bool = true {
+        didSet { Logger.notification.debug("NotificationManager \(self.isReadyToAdvertise ? "isReadyToAdvertise" : "is not readyToAdvertise")") }
+    }
     
-    var evaluationLogger: EvaluationLogger?
-    var rssiThreshold: Int8! = -128 { didSet { Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold) dBM") } }
+    private(set) var simulator: Simulator!
     var lastRSSIValue: Int8?
-    var notificationTimeToLive: TimeInterval! { didSet { Logger.notification.debug("NotificationManager notificationTimeToLive set to \(self.notificationTimeToLive) seconds") } }
-    var initialRediscoveryInterval: TimeInterval! { didSet { Logger.notification.debug("NotificationManager initialRediscoveryInterval set to \(self.initialRediscoveryInterval) seconds") } }
+    var rssiThreshold: Int8 = BleepManagerDefault.rssiThreshold {
+        didSet { Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold) dBM") }
+    }
+    var countHops: Bool = BleepManagerDefault.countHops {
+        didSet { Logger.notification.debug("NotificationManager \(self.countHops ? "will countHops" : "will not countHops")") }
+    }
+    var notificationTimeToLive: TimeInterval = BleepManagerDefault.notificationTimeToLive {
+        didSet { Logger.notification.debug("NotificationManager notificationTimeToLive set to \(String(format: "%u", self.notificationTimeToLive)) seconds") }
+    }
+    var initialRediscoveryInterval: TimeInterval = BleepManagerDefault.initialRediscoveryInterval {
+        didSet { Logger.notification.debug("NotificationManager initialRediscoveryInterval set to \(String(format: "%u", self.initialRediscoveryInterval)) seconds") }
+    }
+    var storedHashedIDsCount: Int { return storedHashedIDs.count }
 
-    private(set) var maxMessageLength: Int!
     private(set) var address: Address!
-    private(set) var contacts: [Address]!
-    private(set) var inbox: [Notification]! = []
-    private(set) var storedHashedIDs: Set<Data>! = []
+    private(set) var contacts: [Address] = []
+    private(set) var inbox: [Notification] = []
+    private(set) var maxMessageLength: Int!
     
-    private var initialNumberOfCopies: UInt8! { didSet { Logger.notification.debug("NotificationManager numberOfCopies set to \(self.initialNumberOfCopies)") } }
-    private var rediscoveryInterval: TimeInterval! { didSet { Logger.notification.debug("NotificationManager rediscoveryInterval set to \(self.rediscoveryInterval)") } }
-    private var hasResetRediscoveryIntervalSinceLastHello: Bool! = false { didSet { Logger.notification.debug("NotificationManager \(self.hasResetRediscoveryIntervalSinceLastHello ? "hasResetRediscoveryIntervalSinceLastHello" : "has not resetRediscoveryIntervalSinceLastHello")") } }
-    private var isRediscoveryIntervalResetDelayed: Bool! = false { didSet { Logger.notification.debug("NotificationManager \(self.isRediscoveryIntervalResetDelayed ? "rediscoveryIntervalReset is delayed" : "rediscoveryIntervalReset is not delayed")") } }
-    private var transmitQueue: [Notification: Bool]! = [:]
-    private var connectionManager: ConnectionManager!
+    private var isResetting: Bool = false
     private var container: ModelContainer!
     private var context: ModelContext!
+    private var connectionManager: ConnectionManager!
+    private var storedHashedIDs: Set<Data> = []
+    private var transmitQueue: [Notification: Bool] = [:]
+    private var initialNumberOfCopies: UInt8 = BleepManagerDefault.initialNumberOfCopies {
+        didSet { Logger.notification.debug("NotificationManager initialNumberOfCopies set to \(self.initialNumberOfCopies)") }
+    }
+    private var rediscoveryInterval: TimeInterval = BleepManagerDefault.initialRediscoveryInterval {
+        didSet { Logger.notification.debug("NotificationManager rediscoveryInterval set to \(String(format: "%u", self.rediscoveryInterval)) seconds") }
+    }
+    private var hasResetRediscoveryIntervalSinceLastHello: Bool = BleepManagerDefault.hasResetRediscoveryIntervalSinceLastHello {
+        didSet { Logger.notification.debug("NotificationManager \(self.hasResetRediscoveryIntervalSinceLastHello ? "hasResetRediscoveryIntervalSinceLastHello" : "has not resetRediscoveryIntervalSinceLastHello")") }
+    }
+    private var isRediscoveryIntervalResetDelayed: Bool = BleepManagerDefault.isRediscoveryIntervalResetDelayed {
+        didSet { Logger.notification.debug("NotificationManager \(self.isRediscoveryIntervalResetDelayed ? "rediscoveryIntervalReset is delayed" : "rediscoveryIntervalReset is not delayed")") }
+    }
     
     // MARK: initializing
     
-    init(type: NotificationManagerType, connectionManagerType: ConnectionManager.Type, notificationTimeToLive: TimeInterval, initialNumberOfCopies: UInt8, initialRediscoveryInterval: TimeInterval) throws {
+    init(type: NotificationManagerType, connectionManagerType: ConnectionManager.Type) throws {
         Logger.notification.trace("\(type) NotificationManager initializes")
         self.type = type
-        self.notificationTimeToLive = notificationTimeToLive
-        self.initialRediscoveryInterval = initialRediscoveryInterval
-        try setInitialNumberOfCopies(to: initialNumberOfCopies)
         container = try! ModelContainer(for: Notification.self, Address.self)
         context = ModelContext(container)
         context.autosaveEnabled = true
-        resetContext(notifications: true)
+        resetContext(notifications: true, address: Utils.resetAddressContext)
         initAddress()
-        initContacts()
+        contacts = Utils.addressBook.filter({ $0 != address })
         initStoredHashedIDsSet()
         initInbox()
+        simulator = Simulator(notificationManager: self)
         connectionManager = connectionManagerType.init(notificationManager: self)
         maxMessageLength = connectionManager.maxNotificationLength - minNotificationLength
         Logger.notification.trace("\(type) NotificationManager initialized")
     }
     
     convenience init() {
-        try! self.init(type: .binarySprayAndWait, connectionManagerType: BluetoothManager.self, notificationTimeToLive: 300, initialNumberOfCopies: 16, initialRediscoveryInterval: 10) // TODO: adjust presets
+        try! self.init(type: .binarySprayAndWait, connectionManagerType: BluetoothManager.self)
     }
-    
-    func setInitialNumberOfCopies(to value: UInt8) throws {
+
+    func reset() {
         Logger.notification.trace("NotificationManager attempts to \(#function)")
-        guard value > 0 && value < 17 else {
-            throw BleepError.invalidControlByteValue
-        }
-        initialNumberOfCopies = value
+        isResetting = true
+        isReadyToAdvertise = false
+        connectionManager.disconnect()
+        resetContext(notifications: true)
+        transmitQueue.removeAll()
+        storedHashedIDs.removeAll()
+        inbox.removeAll()
+        rssiThreshold = BleepManagerDefault.rssiThreshold
+        countHops = BleepManagerDefault.countHops
+        notificationTimeToLive = BleepManagerDefault.notificationTimeToLive
+        initialRediscoveryInterval = BleepManagerDefault.initialRediscoveryInterval
+        rediscoveryInterval = BleepManagerDefault.initialRediscoveryInterval
+        initialNumberOfCopies = BleepManagerDefault.initialNumberOfCopies
+        isResetting = false
+        isReadyToAdvertise = true
+        Logger.notification.info("NotificationManager is reset to defaults")
     }
     
     private func resetContext(notifications: Bool = false, address: Bool = false) {
@@ -141,12 +187,7 @@ class BleepManager: NotificationManager {
             Logger.notification.fault("NotificationManager did not find its name in the addressBook")
         }
         save()
-        Logger.notification.debug("NotificationManager address: \(self.address!.description)")
-    }
-    
-    private func initContacts() {
-        contacts = Utils.addressBook.filter({ $0 != address })
-        Logger.notification.trace("NotificationManager initialized its contacts: \(self.contacts)")
+        Logger.notification.debug("NotificationManager address: \(self.address.description)")
     }
     
     private func initStoredHashedIDsSet() {
@@ -167,10 +208,22 @@ class BleepManager: NotificationManager {
         Logger.notification.debug("NotificationManager added \(self.inbox.count - countBefore) notification(s) to the inbox")
     }
     
+    func setInitialNumberOfCopies(to value: UInt8) throws {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        guard value > 0 && value < 17 else {
+            throw BleepError.invalidControlByteValue
+        }
+        initialNumberOfCopies = value
+    }
+    
     // MARK: incoming
     
     func receiveNotification(_ data: Data) {
         Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
+        guard !isResetting else {
+            Logger.notification.error("NotificationManager is currently resetting and will ignore the notification data")
+            return
+        }
         guard data.count >= minNotificationLength else { // TODO: throw
             Logger.notification.error("NotificationManager will ignore the notification data as it's not at least \(self.minNotificationLength) bytes long")
             return
@@ -201,12 +254,14 @@ class BleepManager: NotificationManager {
             return
         }
         Logger.notification.info("NotificationManager accepted notification \(notification.description) with message: '\(notification.message)'")
-        if evaluationLogger == nil {
-            Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
-        } else {
+        if countHops {
             notification.message = String((Int(notification.message) ?? Int.min) + 1) // Increment hop count
-            Logger.notification.info("NotificationManager did increment hop count of notification #\(Utils.printID(hashedID))")
-            evaluationLogger!.log(notification, at: address)
+            Logger.notification.info("NotificationManager did increment hop count of notification #\(Utils.printID(hashedID)) to: '\(notification.message)'")
+        }
+        if simulator.evaluationLogger == nil {
+            Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil")
+        } else {
+            simulator.evaluationLogger!.log(notification, at: address)
         }
         if notification.hashedDestinationAddress == address.hashed {
             try! notification.setDestinationControl(to: 0)
@@ -272,6 +327,11 @@ class BleepManager: NotificationManager {
     }
     
     func receiveAcknowledgement(_ data: Data) -> Bool {
+        Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count) bytes")
+        guard !isResetting else {
+            Logger.notification.error("NotificationManager is currently resetting and will ignore the acknowledgement data")
+            return false
+        }
         switch type! {
         case .direct, .epidemic:
             Logger.notification.error("NotificationManager does not support \(#function)")
@@ -318,6 +378,11 @@ class BleepManager: NotificationManager {
     // MARK: outgoing
     
     func send(_ message: String, to destinationAddress: Address) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) message '\(message)' to \(destinationAddress.description)")
+        guard !isResetting else {
+            Logger.notification.error("NotificationManager is currently resetting and will not \(#function)")
+            return
+        }
         var controlByte: ControlByte!
         switch type! {
         case .direct:
@@ -346,6 +411,10 @@ class BleepManager: NotificationManager {
     
     func transmitNotifications() { // Get's called after a consumer subscribed to this publisher and each time a transmission fails
         Logger.notification.trace("NotificationManager may attempt to \(#function)")
+        guard !isResetting else {
+            Logger.notification.error("NotificationManager is currently resetting and will not \(#function)")
+            return
+        }
         isReadyToAdvertise = false
         if transmitQueue.isEmpty { // Prepare a current transmitQueue only at the first call, meaning for each new subscription, not every time a transmission fails
             if type == .disconnectedTransitiveCommunication { // Each new subscription shall contain at least one current HELLO notification
@@ -376,10 +445,10 @@ class BleepManager: NotificationManager {
                 transmitQueue[notification] = true
                 notification.lastRediscovery = Date.now
                 rediscoveryInterval *= 2
-                if evaluationLogger == nil {
-                    Logger.notification.warning("NotificationManager did not call evaluationLogger.log() because the evaluationLogger property is nil")
+                if simulator.evaluationLogger == nil {
+                    Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil")
                 } else {
-                    evaluationLogger!.log(notification, at: address)
+                    simulator.evaluationLogger!.log(notification, at: address)
                 }
                 continue
             } else {
@@ -457,7 +526,7 @@ class BleepManager: NotificationManager {
     
     // MARK: persisting
     
-    func insert(_ notification: Notification) {
+    private func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
         context.insert(notification)
         save()

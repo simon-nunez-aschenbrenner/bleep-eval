@@ -39,7 +39,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     func advertise() {
         Logger.peripheral.debug("Peripheral may attempt to \(#function)")
         guard peripheralManager.state == .poweredOn else {
-            Logger.peripheral.warning("Peripheral won't attempt to \(#function): peripheralManager.state \(self.peripheralManager.state == .poweredOn ? "== poweredOn" : "!= poweredOn")")
+            Logger.peripheral.warning("Peripheral won't attempt to \(#function): peripheralManager is not poweredOn")
             return
         }
         if peripheralManager.isAdvertising { peripheralManager.stopAdvertising() } // TODO: needed?

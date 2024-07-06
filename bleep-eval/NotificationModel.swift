@@ -12,11 +12,11 @@ import OSLog
 
 // MARK: ControlByte
 
-struct ControlByte: Equatable, CustomStringConvertible {
+struct ControlByte: Codable, CustomStringConvertible, Equatable {
         
-    let protocolValue: UInt8
-    let destinationControlValue: UInt8
-    let sequenceNumberValue: UInt8
+    private(set) var protocolValue: UInt8
+    private(set) var destinationControlValue: UInt8
+    private(set) var sequenceNumberValue: UInt8
     
     var value: UInt8 {
         var result = UInt8(0)
@@ -31,10 +31,13 @@ struct ControlByte: Equatable, CustomStringConvertible {
     }
     
     init(protocolValue: UInt8, destinationControlValue: UInt8, sequenceNumberValue: UInt8) throws {
-        guard protocolValue < 4, destinationControlValue < 4, sequenceNumberValue < 16 else { throw BleepError.invalidControlByteValue }
+        guard protocolValue < 4 && destinationControlValue < 4 && sequenceNumberValue < 16 else { throw BleepError.invalidControlByteValue }
         self.protocolValue = protocolValue
         self.destinationControlValue = destinationControlValue
         self.sequenceNumberValue = sequenceNumberValue
+//        try setProtocol(to: protocolValue)
+//        try setDestinationControl(to: destinationControlValue)
+//        try setSequenceNumber(to: sequenceNumberValue)
     }
     
     init(_ value: UInt8) {
@@ -44,6 +47,21 @@ struct ControlByte: Equatable, CustomStringConvertible {
         try! self.init(protocolValue: protocolValue, destinationControlValue: destinationControlValue, sequenceNumberValue: sequenceNumberValue)
     }
     
+    mutating func setProtocol(to value: UInt8) throws {
+        guard value < 4 else { throw BleepError.invalidControlByteValue }
+        self.protocolValue = value
+    }
+    
+    mutating func setDestinationControl(to value: UInt8) throws {
+        guard value < 4 else { throw BleepError.invalidControlByteValue }
+        self.destinationControlValue = value
+    }
+    
+    mutating func setSequenceNumber(to value: UInt8) throws {
+        guard value < 16 else { throw BleepError.invalidControlByteValue }
+        self.sequenceNumberValue = value
+    }
+    
 }
 
 // MARK: Notification
@@ -51,41 +69,44 @@ struct ControlByte: Equatable, CustomStringConvertible {
 @Model
 class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
-    private(set) var protocolValue: UInt8!
-    private(set) var destinationControlValue: UInt8!
-    private(set) var sequenceNumberValue: UInt8!
+//    private(set) var protocolValue: UInt8!
+//    private(set) var destinationControlValue: UInt8!
+//    private(set) var sequenceNumberValue: UInt8!
+//    
+//    var controlByte: UInt8 {
+//        var result = UInt8(0)
+//        result += protocolValue << 6
+//        result += destinationControlValue << 4
+//        result += sequenceNumberValue
+//        return result
+//    }
     
-    var controlByte: UInt8 {
-        var result = UInt8(0)
-        result += protocolValue << 6
-        result += destinationControlValue << 4
-        result += sequenceNumberValue
-        return result
-    }
-    
-    @Attribute(.unique) let hashedID: Data!
-    
+    var controlByte: ControlByte
+    @Attribute(.unique) let hashedID: Data
     let hashedSourceAddress: Data
     let hashedDestinationAddress: Data
-    let sentTimestamp: Date
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
+    var message: String
+    
+    let sentTimestamp: Date
     let receivedTimestamp: Date?
-    var message: String // TODO: Change to let when not evaluating
+    var hasBeenAcknowledged: Bool = false
     var lastRediscovery: Date? {
         didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") }
     }
     
     var description: String {
-        return "#\(Utils.printID(hashedID)) [P\(protocolValue!) D\(destinationControlValue!) S\(sequenceNumberValue!)] from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
+        return "#\(Utils.printID(hashedID)) \(controlByte.description) from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
     }
     
-    // Used by sender
-    init(controlByte: ControlByte!, sourceAddress: Address!, destinationAddress: Address!, message: String!) {
-        self.protocolValue = controlByte.protocolValue
-        self.destinationControlValue = controlByte.destinationControlValue
-        self.sequenceNumberValue = controlByte.sequenceNumberValue
+    // Used by provider
+    init(controlByte: ControlByte, sourceAddress: Address, destinationAddress: Address, message: String) {
+//        self.protocolValue = controlByte.protocolValue
+//        self.destinationControlValue = controlByte.destinationControlValue
+//        self.sequenceNumberValue = controlByte.sequenceNumberValue
         let id = String(sourceAddress.rawValue).appendingFormat("%064u", UInt64.random(in: UInt64.min...UInt64.max))
         self.hashedID = Data(SHA256.hash(data: id.data(using: .utf8)!))
+        self.controlByte = controlByte
         self.hashedSourceAddress = sourceAddress.hashed
         self.hashedDestinationAddress = destinationAddress.hashed
         self.sentTimestamp = Date()
@@ -94,18 +115,23 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
         Logger.notification.debug("Notification \(self.description) with message '\(self.message)' initialized")
     }
     
-    // Used by receiver
-    init(controlByte: ControlByte!, hashedID: Data!, hashedDestinationAddress: Data!, hashedSourceAddress: Data!, sentTimestampData: Data!, message: String!) {
-        self.protocolValue = controlByte.protocolValue
-        self.destinationControlValue = controlByte.destinationControlValue
-        self.sequenceNumberValue = controlByte.sequenceNumberValue
+    // Used by consumer
+    init(controlByte: ControlByte, hashedID: Data, hashedDestinationAddress: Data, hashedSourceAddress: Data, sentTimestampData: Data, message: String) {
+//        self.protocolValue = controlByte.protocolValue
+//        self.destinationControlValue = controlByte.destinationControlValue
+//        self.sequenceNumberValue = controlByte.sequenceNumberValue
         self.hashedID = hashedID
+        self.controlByte = controlByte
         self.hashedSourceAddress = hashedSourceAddress
         self.hashedDestinationAddress = hashedDestinationAddress
         self.sentTimestamp = Notification.decodeTimestamp(data: sentTimestampData)
-        self.receivedTimestamp = Date()
+        self.receivedTimestamp = Date.now
         self.message = message
         Logger.notification.debug("Notification \(self.description) with message '\(self.message)' initialized")
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(hashedID)
     }
     
     static func encodeTimestamp(date: Date) -> Data {
@@ -115,20 +141,6 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     static func decodeTimestamp(data: Data) -> Date {
         assert(data.count == 8)
         return Date(timeIntervalSinceReferenceDate: TimeInterval(bitPattern: data.withUnsafeBytes { $0.load(as: UInt64.self).bigEndian }))
-    }
-    
-    func setDestinationControl(to value: UInt8) throws {
-        guard value < 4 else { throw BleepError.invalidControlByteValue }
-        self.destinationControlValue = value
-    }
-    
-    func setSequenceNumber(to value: UInt8) throws {
-        guard value < 16 else { throw BleepError.invalidControlByteValue }
-        self.sequenceNumberValue = value
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(hashedID)
     }
     
     static func == (lhs: Notification, rhs: Notification) -> Bool {

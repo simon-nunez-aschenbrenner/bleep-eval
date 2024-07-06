@@ -12,13 +12,12 @@ import OSLog
 @Observable
 class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
-    unowned var notificationManager: NotificationManager!
-    unowned var bluetoothManager: BluetoothManager!
-    var peripheralManager: CBPeripheralManager!
-    
-    var service: CBMutableService!
-    var notificationSource: CBMutableCharacteristic!
-    var notificationAcknowledgement: CBMutableCharacteristic!
+    private(set) var peripheralManager: CBPeripheralManager!
+    private(set) var notificationSource: CBMutableCharacteristic!
+    private(set) var notificationAcknowledgement: CBMutableCharacteristic!
+    private var service: CBMutableService!
+    unowned private var notificationManager: NotificationManager!
+    unowned private var bluetoothManager: BluetoothManager!
             
     // MARK: initializing methods
     
@@ -39,7 +38,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     func advertise() {
         Logger.peripheral.debug("Peripheral may attempt to \(#function)")
         guard peripheralManager.state == .poweredOn else {
-            Logger.peripheral.warning("Peripheral won't attempt to \(#function): peripheralManager is not poweredOn")
+            Logger.peripheral.warning("Peripheral won't attempt to \(#function) because the peripheralManager is not poweredOn")
             return
         }
         if peripheralManager.isAdvertising { peripheralManager.stopAdvertising() } // TODO: needed?
@@ -47,7 +46,6 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         peripheralManager.add(self.service) // TODO: needed?
         Logger.peripheral.debug("Peripheral attempts to \(#function) with randomIdentifier '\(self.bluetoothManager.randomIdentifier)' and service '\(BluetoothManager.getName(of: self.service.uuid))' to centrals")
         peripheralManager.startAdvertising([CBAdvertisementDataServiceUUIDsKey: [self.service.uuid], CBAdvertisementDataLocalNameKey: bluetoothManager.randomIdentifier])
-        // TODO: throw when we did not start advertising
     }
 
     // MARK: delegate methods
@@ -95,6 +93,12 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         Logger.peripheral.info("Peripheral started advertising")
     }
     
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
+        peripheralManager.setDesiredConnectionLatency(.low, for: central)
+        notificationManager.transmitNotifications()
+    }
+    
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         Logger.peripheral.trace("Peripheral didReceiveWrite")
         for request in requests {
@@ -109,18 +113,12 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
                 continue
             }
             Logger.peripheral.debug("Peripheral didReceiveWrite for '\(BluetoothManager.getName(of: request.characteristic.uuid))' from central '\(Utils.printID(request.central.identifier.uuidString))'")
-            if notificationManager.receiveAcknowledgement(data) {
+            if notificationManager.receiveAcknowledgement(data, from: request.central.identifier.uuidString) {
                 peripheral.respond(to: request, withResult: .success)
             } else {
                 peripheral.respond(to: request, withResult: .unlikelyError)
             }
         }
-    }
-    
-    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
-        peripheralManager.setDesiredConnectionLatency(.low, for: central)
-        notificationManager.transmitNotifications()
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {

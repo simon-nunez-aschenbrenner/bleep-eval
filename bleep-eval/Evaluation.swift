@@ -58,7 +58,7 @@ class Simulator {
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
             let message: String = self.notificationManager.countHops ? "0" : Utils.generateText(with: Int.random(in: 0...self.notificationManager.maxMessageLength), testPattern: false)
-            self.notificationManager.send(message, to: self.destinations.randomElement()!)
+            self.notificationManager.sendNotification(message, to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }
@@ -124,9 +124,9 @@ class EvaluationLogger {
         stringBuilder.append(status)
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
-        stringBuilder.append(String(notification.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Binary Spray and Wait, TODO: 3 = ???
-        stringBuilder.append(String(notification.destinationControlValue)) // 0 = Nobody (Reached Destination), 1 = Anybody, 2 = Destination only, TODO: 3 = ???
-        stringBuilder.append(String(notification.sequenceNumberValue)) // 0...15
+        stringBuilder.append(String(notification.controlByte.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Binary Spray and Wait, TODO: 3 = ???
+        stringBuilder.append(String(notification.controlByte.destinationControlValue)) // 0 = Nobody (Reached Destination), 1 = Anybody, 2 = Destination only, TODO: 3 = ???
+        stringBuilder.append(String(notification.controlByte.sequenceNumberValue)) // 0...15
         stringBuilder.append(notification.hashedSourceAddress.base64EncodedString())
         stringBuilder.append(String(notification.sentTimestamp.timeIntervalSinceReferenceDate as Double))
         stringBuilder.append(notification.hashedDestinationAddress.base64EncodedString())

@@ -20,7 +20,8 @@ protocol ConnectionManager {
     
     func advertise()
     func transmit(_ data: Data) -> Bool
-    func acknowledge(_ data: Data)
+    func acknowledge(_ data: Data, to id: String) -> Bool
+    func disconnect(_ id: String)
     func disconnect()
 }
 
@@ -77,25 +78,43 @@ class BluetoothManager: ConnectionManager {
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
-    func acknowledge(_ data: Data) {
-        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) #\(Utils.printID(data))")
-        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: throw
-            Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
-            return
-        }
+    func acknowledge(_ data: Data, to id: String) -> Bool {
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) of \(data.count) bytes to '\(Utils.printID(id))'")
         guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: throw
             Logger.bluetooth.error("BluetoothManager can't \(#function) because the centralManagerDelegate notificationAcknowledgement characteristic property is nil")
-            return
+            return false
         }
+        guard let peripheral = getPeripheral(id) else { return false }
         peripheral.writeValue(data, for: notificationAcknowledgement, type: .withResponse)
+        return true
+    }
+    
+    func disconnect(_ id: String) {
+        Logger.bluetooth.trace("BluetoothManager attempts to \(#function) from '\(Utils.printID(id))'")
+        guard let peripheral = getPeripheral(id) else { return }
+        centralManagerDelegate.centralManager.cancelPeripheralConnection(peripheral)
     }
     
     func disconnect() {
-        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-        guard let peripheral = centralManagerDelegate.peripheral else { // TODO: throw
-            Logger.central.error("BluetoothManager can't \(#function) because the centralManagerDelegate peripheral property is nil")
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) from all peripherals")
+        let peripherals = centralManagerDelegate.centralManager.retrieveConnectedPeripherals(withServices: [BluetoothManager.serviceUUID])
+        guard !peripherals.isEmpty else {
+            Logger.bluetooth.debug("BluetoothManager can't \(#function) because there are no connected peripherals")
             return
         }
-        centralManagerDelegate.centralManager.cancelPeripheralConnection(peripheral)
+        for peripheral in peripherals {
+            Logger.bluetooth.debug("BluetoothManager attempts to \(#function) from '\(Utils.printID(peripheral.identifier.uuidString))'")
+            centralManagerDelegate.centralManager.cancelPeripheralConnection(peripheral)
+        }
+    }
+    
+    private func getPeripheral(_ id: String) -> CBPeripheral? {
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) '\(Utils.printID(id))'")
+        let peripherals = centralManagerDelegate.centralManager.retrievePeripherals(withIdentifiers: [UUID(uuidString: id)!])
+        guard !peripherals.isEmpty else { // TODO: throw
+            Logger.central.error("BluetoothManager can't \(#function) because there are no matching peripherals")
+            return nil
+        }
+        return peripherals[0]
     }
 }

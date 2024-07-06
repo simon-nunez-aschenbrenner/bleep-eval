@@ -11,7 +11,7 @@ import SwiftUI
 
 struct MainView: View {
     
-    @State private var notificationManager = BleepManager()
+    @Environment(BleepManager.self) private var notificationManager: BleepManager
     @State private var showAutoView: Bool = true
     @State private var showNotifications: Bool = false
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]

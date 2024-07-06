@@ -119,13 +119,13 @@ class EvaluationLogger {
         stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
         var status: String = "0" // undefined
         if notification.receivedTimestamp == nil { status = "1" } // created
-        else if address.hashed == notification.hashedSourceAddress { status = "2" } // forwarded
+        else if address.hashed != notification.hashedSourceAddress { status = "2" } // forwarded
         else if address.hashed == notification.hashedDestinationAddress { status = "3" } // received
         stringBuilder.append(status)
         // Data provided by the notification
         stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
-        stringBuilder.append(String(notification.controlByte.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Binary Spray and Wait, TODO: 3 = ???
-        stringBuilder.append(String(notification.controlByte.destinationControlValue)) // 0 = Nobody (Reached Destination), 1 = Anybody, 2 = Destination only, TODO: 3 = ???
+        stringBuilder.append(String(notification.controlByte.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Replicating, 3 = Forwarding
+        stringBuilder.append(String(notification.controlByte.destinationControlValue)) // 0 = Nobody/Goodbye (reached destination), 1 = Anybody/Hello (in transit), 2 = Destination only/Better utility (in transit), 3 = Destination only/Utility probe (in transit)
         stringBuilder.append(String(notification.controlByte.sequenceNumberValue)) // 0...15
         stringBuilder.append(notification.hashedSourceAddress.base64EncodedString())
         stringBuilder.append(String(notification.sentTimestamp.timeIntervalSinceReferenceDate as Double))

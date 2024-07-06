@@ -19,7 +19,7 @@ protocol ConnectionManager {
     init(notificationManager: NotificationManager)
     
     func advertise()
-    func transmit(_ data: Data) -> Bool
+    func publish(_ data: Data) -> Bool
     func acknowledge(_ data: Data, to id: String) -> Bool
     func disconnect(_ id: String)
     func disconnect()
@@ -73,7 +73,7 @@ class BluetoothManager: ConnectionManager {
         recentRandomIdentifiers.insert(randomIdentifier)
     }
     
-    func transmit(_ data: Data) -> Bool {
+    func publish(_ data: Data) -> Bool {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }

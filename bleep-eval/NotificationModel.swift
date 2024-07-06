@@ -35,9 +35,6 @@ struct ControlByte: Codable, CustomStringConvertible, Equatable {
         self.protocolValue = protocolValue
         self.destinationControlValue = destinationControlValue
         self.sequenceNumberValue = sequenceNumberValue
-//        try setProtocol(to: protocolValue)
-//        try setDestinationControl(to: destinationControlValue)
-//        try setSequenceNumber(to: sequenceNumberValue)
     }
     
     init(_ value: UInt8) {
@@ -61,25 +58,12 @@ struct ControlByte: Codable, CustomStringConvertible, Equatable {
         guard value < 16 else { throw BleepError.invalidControlByteValue }
         self.sequenceNumberValue = value
     }
-    
 }
 
 // MARK: Notification
 
 @Model
 class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
-    
-//    private(set) var protocolValue: UInt8!
-//    private(set) var destinationControlValue: UInt8!
-//    private(set) var sequenceNumberValue: UInt8!
-//    
-//    var controlByte: UInt8 {
-//        var result = UInt8(0)
-//        result += protocolValue << 6
-//        result += destinationControlValue << 4
-//        result += sequenceNumberValue
-//        return result
-//    }
     
     var controlByte: ControlByte
     @Attribute(.unique) let hashedID: Data
@@ -94,6 +78,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     var lastRediscovery: Date? {
         didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") }
     }
+    var collectedUtilites: [UInt8] = []
     
     var description: String {
         return "#\(Utils.printID(hashedID)) \(controlByte.description) from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
@@ -101,9 +86,6 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     // Used by provider
     init(controlByte: ControlByte, sourceAddress: Address, destinationAddress: Address, message: String) {
-//        self.protocolValue = controlByte.protocolValue
-//        self.destinationControlValue = controlByte.destinationControlValue
-//        self.sequenceNumberValue = controlByte.sequenceNumberValue
         let id = String(sourceAddress.rawValue).appendingFormat("%064u", UInt64.random(in: UInt64.min...UInt64.max))
         self.hashedID = Data(SHA256.hash(data: id.data(using: .utf8)!))
         self.controlByte = controlByte
@@ -117,9 +99,6 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     // Used by consumer
     init(controlByte: ControlByte, hashedID: Data, hashedDestinationAddress: Data, hashedSourceAddress: Data, sentTimestampData: Data, message: String) {
-//        self.protocolValue = controlByte.protocolValue
-//        self.destinationControlValue = controlByte.destinationControlValue
-//        self.sequenceNumberValue = controlByte.sequenceNumberValue
         self.hashedID = hashedID
         self.controlByte = controlByte
         self.hashedSourceAddress = hashedSourceAddress

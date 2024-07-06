@@ -19,6 +19,7 @@ struct SimulationView: View {
     @State private var countHops: Bool = true
     @State private var rssiThresholdFactor: Int = -8
     @State private var notificationTimeToLiveFactor: Int = 5
+    @State private var utilityCollectionTimeoutFactor: Int = 1
     @State private var initialRediscoveryIntervalFactor: Int = 1
     @State private var isSending: Bool = false
     @State private var frequency: Int = 3
@@ -162,10 +163,17 @@ struct SimulationView: View {
                     .listRowSeparator(.hidden)
                     .onChange(of: notificationTimeToLiveFactor, initial: true) { notificationManager.notificationTimeToLive = TimeInterval(notificationTimeToLiveFactor * 60) }
                 
-                // MARK: RDI
+                // MARK: DTC
                 
                 if notificationManager.type == .disconnectedTransitiveCommunication {
-                    Stepper("Initial RDI: \(initialRediscoveryIntervalFactor * 10) seconds", value: $initialRediscoveryIntervalFactor, in: 1...16)
+                    Stepper("Collect utilities for: \(utilityCollectionTimeoutFactor * 10) seconds", value: $utilityCollectionTimeoutFactor, in: 1...16)
+                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
+                        .foregroundColor(Color("bleepPrimary"))
+                        .disabled(notificationManager.simulator.isRunning)
+                        .listRowSeparator(.hidden)
+                        .onChange(of: utilityCollectionTimeoutFactor, initial: true) { notificationManager.utilityCollectionTimeout = TimeInterval(utilityCollectionTimeoutFactor * 10) }
+
+                    Stepper("Minimum RDI: \(initialRediscoveryIntervalFactor * 10) seconds", value: $initialRediscoveryIntervalFactor, in: 1...16)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                         .disabled(notificationManager.simulator.isRunning)

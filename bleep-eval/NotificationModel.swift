@@ -76,8 +76,8 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     let sentTimestamp: Date
     let receivedTimestamp: Date?
     var hasBeenRespondedTo: Bool = false
-    var lastRediscovery: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") } }
-    var collectedUtilites: Set<UInt8> = []
+    var lastRediscoveryTimestamp: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscoveryTimestamp set to \(self.lastRediscovery)") } }
+    var collectedUtilites: [UInt8:String?] = [:]
     
     var description: String {
         return "#\(Utils.printID(hashedID)) \(controlByte.description) from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"

@@ -12,6 +12,7 @@ import OSLog
 @Observable
 class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
+    var centrals: Set<CBCentral> = []
     private(set) var peripheralManager: CBPeripheralManager!
     private(set) var notificationSource: CBMutableCharacteristic!
     private(set) var notificationResponse: CBMutableCharacteristic!
@@ -94,6 +95,8 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didSubscribeTo characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
+        notificationManager.blocked = true
+        centrals.insert(central)
         peripheralManager.setDesiredConnectionLatency(.low, for: central)
         notificationManager.transmitNotifications()
     }
@@ -112,7 +115,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
                 continue
             }
             Logger.peripheral.debug("Peripheral didReceiveWrite for '\(BluetoothManager.getName(of: request.characteristic.uuid))' from central '\(Utils.printID(request.central.identifier.uuidString))'")
-            if notificationManager.receiveResponse(data) {
+            if notificationManager.receiveResponse(data, from: request.central.identifier.uuidString) {
                 peripheral.respond(to: request, withResult: .success)
             } else {
                 peripheral.respond(to: request, withResult: .unlikelyError)
@@ -122,6 +125,8 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         Logger.peripheral.info("Central '\(Utils.printID(central.identifier.uuidString))' didUnsubscribeFrom characteristic '\(BluetoothManager.getName(of: characteristic.uuid))'")
+        centrals.remove(central)
+        if centrals.isEmpty { notificationManager.blocked = false }
     }
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {

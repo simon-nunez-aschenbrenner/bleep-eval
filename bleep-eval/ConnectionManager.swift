@@ -17,9 +17,11 @@ protocol ConnectionManager {
     init(notificationManager: NotificationManager)
     func advertise()
     func publish(_ data: Data) -> Bool
+    func publish(_ data: Data, to id: String) -> Bool
     func write(_ data: Data, to id: String) -> Bool
     func disconnect(_ id: String)
     func disconnect()
+    func reset()
 }
 
 // MARK: BluetoothManager
@@ -47,9 +49,8 @@ class BluetoothManager: ConnectionManager {
     }
     
     let maxNotificationLength: Int! = 524
-    
+    var recentRandomIdentifiers: Set<String> = []
     private(set) var randomIdentifier: String = String(Address().base58Encoded.suffix(8))
-    private(set) var recentRandomIdentifiers: Set<String> = []
     private var peripheralManagerDelegate: PeripheralManagerDelegate! // Provider
     private var centralManagerDelegate: CentralManagerDelegate! // Consumer
         
@@ -59,19 +60,42 @@ class BluetoothManager: ConnectionManager {
         Logger.bluetooth.trace("BluetoothManager initialized with randomIdentifier '\(self.randomIdentifier)'")
     }
     
+    private func getPeripheral(_ id: String) -> CBPeripheral? {
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) '\(Utils.printID(id))'")
+        let peripherals = centralManagerDelegate.centralManager.retrievePeripherals(withIdentifiers: [UUID(uuidString: id)!])
+        guard !peripherals.isEmpty else {
+            Logger.central.error("BluetoothManager can't \(#function) because there is no matching peripheral")
+            return nil
+        }
+        return peripherals[0]
+    }
+    
+    func reset() {
+        peripheralManagerDelegate.centrals.removeAll()
+        disconnect()
+        advertise()
+    }
+    
+    // MARK: Provider
+    
     func advertise() {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
         randomIdentifier = String(Address().base58Encoded.suffix(8))
         peripheralManagerDelegate.advertise()
     }
     
-    func add(randomIdentifier: String) {
-        recentRandomIdentifiers.insert(randomIdentifier)
+    func publish(_ data: Data) -> Bool {
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) \(data.count) bytes")
+        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
-    func publish(_ data: Data) -> Bool {
-        Logger.bluetooth.trace("BluetoothManager attempts to \(#function)")
-        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
+    func publish(_ data: Data, to id: String) -> Bool {
+        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) \(data.count) bytes to '\(Utils.printID(id))'")
+        guard let central = peripheralManagerDelegate.centrals.first(where: { $0.identifier.uuidString == id } ) else {
+            Logger.central.error("BluetoothManager can't \(#function) because there is no matching central")
+            return false
+        }
+        return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: [central])
     }
     
     func write(_ data: Data, to id: String) -> Bool {
@@ -84,6 +108,8 @@ class BluetoothManager: ConnectionManager {
         peripheral.writeValue(data, for: notificationResponse, type: .withResponse)
         return true
     }
+    
+    // MARK: Consumer
     
     func disconnect(_ id: String) {
         Logger.bluetooth.trace("BluetoothManager attempts to \(#function) from '\(Utils.printID(id))'")
@@ -102,15 +128,5 @@ class BluetoothManager: ConnectionManager {
             Logger.bluetooth.debug("BluetoothManager attempts to \(#function) from '\(Utils.printID(peripheral.identifier.uuidString))'")
             centralManagerDelegate.centralManager.cancelPeripheralConnection(peripheral)
         }
-    }
-    
-    private func getPeripheral(_ id: String) -> CBPeripheral? {
-        Logger.bluetooth.debug("BluetoothManager attempts to \(#function) '\(Utils.printID(id))'")
-        let peripherals = centralManagerDelegate.centralManager.retrievePeripherals(withIdentifiers: [UUID(uuidString: id)!])
-        guard !peripherals.isEmpty else {
-            Logger.central.error("BluetoothManager can't \(#function) because there are no matching peripherals")
-            return nil
-        }
-        return peripherals[0]
     }
 }

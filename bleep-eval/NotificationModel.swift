@@ -70,8 +70,8 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     var controlByte: ControlByte
     let hashedSourceAddress: Data
     let hashedDestinationAddress: Data
+    var message: String // TODO: Should be let when not counting hops
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
-    var message: String
     
     let sentTimestamp: Date
     let receivedTimestamp: Date?

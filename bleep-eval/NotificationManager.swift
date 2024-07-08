@@ -12,16 +12,20 @@ import UIKit
 
 // MARK: NotificationManager
 
-protocol NotificationManager: AnyObject {
-    var blocked: Bool { get set }
-    var address: Address! { get }
-    var contacts: [Address] { get }
-    var inbox: [Notification] { get }
-    var maxMessageLength: Int! { get }
-    func receiveNotification(_ data: Data, from id: String)
-    func receiveResponse(_ data: Data) -> Bool
-    func send(_ message: String, to destinationAddress: Address)
-    func transmitNotifications()
+enum NotificationManagerType: UInt8, CaseIterable, Identifiable, CustomStringConvertible {
+    case direct = 0
+    case epidemic = 1
+    case replicating = 2
+    case forwarding = 3
+    var id: Self { self }
+    var description: String {
+        switch self {
+        case .direct: return "Direct"
+        case .epidemic: return "Epidemic"
+        case .replicating: return "Replicating"
+        case .forwarding: return "Forwarding"
+        }
+    }
 }
 
 protocol EvaluableNotificationManager: NotificationManager {
@@ -38,20 +42,22 @@ protocol EvaluableNotificationManager: NotificationManager {
     func reset()
 }
 
-enum NotificationManagerType: UInt8, CaseIterable, Identifiable, CustomStringConvertible {
-    case direct = 0
-    case epidemic = 1
-    case binarySprayAndWait = 2
-    case disconnectedTransitiveCommunication = 3
-    var id: Self { self }
-    var description: String {
-        switch self {
-        case .direct: return "Direct"
-        case .epidemic: return "Epidemic"
-        case .binarySprayAndWait: return "Replicating"
-        case .disconnectedTransitiveCommunication: return "Forwarding"
-        }
-    }
+protocol NotificationManager: NotificationProvider, NotificationConsumer {
+    var address: Address! { get }
+    var contacts: [Address] { get }
+    var inbox: [Notification] { get }
+    var maxMessageLength: Int! { get }
+    func send(_ message: String, to destinationAddress: Address)
+}
+
+protocol NotificationProvider: AnyObject {
+    func transmitNotifications()
+    func receiveResponse(_ data: Data) -> Bool
+}
+
+protocol NotificationConsumer: AnyObject {
+    var blocked: Bool { get set }
+    func receiveNotification(_ data: Data, from id: String)
 }
 
 // MARK: BleepManager
@@ -84,13 +90,13 @@ class BleepManager: EvaluableNotificationManager {
         didSet { Logger.notification.debug("NotificationManager rssiThreshold set to \(self.rssiThreshold) dBM") }
     }
     var notificationTimeToLive: TimeInterval = Default.notificationTimeToLive {
-        didSet { Logger.notification.debug("NotificationManager notificationTimeToLive set to \(String(format: "%u", self.notificationTimeToLive)) seconds") }
+        didSet { Logger.notification.debug("NotificationManager notificationTimeToLive set to \(String(format: "%.0f", self.notificationTimeToLive)) seconds") }
     }
     var utilityCollectionTimeout: TimeInterval = Default.utilityCollectionTimeout {
-        didSet { Logger.notification.debug("NotificationManager utilityCollectionTimeout set to \(String(format: "%u", self.utilityCollectionTimeout)) seconds") }
+        didSet { Logger.notification.debug("NotificationManager utilityCollectionTimeout set to \(String(format: "%.0f", self.utilityCollectionTimeout)) seconds") }
     }
     var initialRediscoveryInterval: TimeInterval = Default.initialRediscoveryInterval {
-        didSet { Logger.notification.debug("NotificationManager initialRediscoveryInterval set to \(String(format: "%u", self.initialRediscoveryInterval)) seconds") }
+        didSet { Logger.notification.debug("NotificationManager initialRediscoveryInterval set to \(String(format: "%.0f", self.initialRediscoveryInterval)) seconds") }
     }
     var storedHashedIDsCount: Int { return storedHashedIDs.count }
 
@@ -109,7 +115,7 @@ class BleepManager: EvaluableNotificationManager {
         didSet { Logger.notification.debug("NotificationManager initialNumberOfCopies set to \(self.initialNumberOfCopies)") }
     }
     private var rediscoveryInterval: TimeInterval = Default.initialRediscoveryInterval {
-        didSet { Logger.notification.debug("NotificationManager rediscoveryInterval set to \(String(format: "%u", self.rediscoveryInterval)) seconds") }
+        didSet { Logger.notification.debug("NotificationManager rediscoveryInterval set to \(String(format: "%.0f", self.rediscoveryInterval)) seconds") }
     }
     private var hasResetRediscoveryIntervalSinceLastHello: Bool = Default.hasResetRediscoveryIntervalSinceLastHello {
         didSet { Logger.notification.debug("NotificationManager \(self.hasResetRediscoveryIntervalSinceLastHello ? "hasResetRediscoveryIntervalSinceLastHello" : "has not resetRediscoveryIntervalSinceLastHello")") }
@@ -117,11 +123,8 @@ class BleepManager: EvaluableNotificationManager {
     private var isRediscoveryIntervalResetDelayed: Bool = Default.isRediscoveryIntervalResetDelayed {
         didSet { Logger.notification.debug("NotificationManager \(self.isRediscoveryIntervalResetDelayed ? "rediscoveryIntervalReset is delayed" : "rediscoveryIntervalReset is not delayed")") }
     }
-    
-    // MARK: initializing
-    
+        
     init(type: NotificationManagerType, connectionManagerType: ConnectionManager.Type) {
-        Logger.notification.trace("\(type) NotificationManager initializes")
         self.type = type
         container = try! ModelContainer(for: Notification.self, Address.self)
         context = ModelContext(container)
@@ -138,7 +141,7 @@ class BleepManager: EvaluableNotificationManager {
     }
     
     convenience init() {
-        self.init(type: .disconnectedTransitiveCommunication, connectionManagerType: BluetoothManager.self)
+        self.init(type: .replicating, connectionManagerType: BluetoothManager.self)
     }
 
     func reset() {
@@ -165,7 +168,7 @@ class BleepManager: EvaluableNotificationManager {
     }
     
     private func initAddress() {
-        Logger.notification.trace("NotificationManager initializes its address")
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
         let fetchResult = try? context.fetch(FetchDescriptor<Address>(predicate: #Predicate<Address> { return $0.isOwn == true }))
         if fetchResult == nil || fetchResult!.isEmpty {
             Logger.notification.info("NotificationManager is creating a new address for itself")
@@ -211,8 +214,225 @@ class BleepManager: EvaluableNotificationManager {
         }
         initialNumberOfCopies = value
     }
+}
+
+// MARK: NotificationProvider
+
+extension BleepManager: NotificationProvider {
     
-    // MARK: receiving
+    func send(_ message: String, to destinationAddress: Address) {
+        Logger.notification.debug("NotificationManager attempts to \(#function) message '\(message)' to \(destinationAddress.description)")
+        var controlByte: ControlByte!
+        switch type! {
+        case .direct:
+            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: 0)
+        case .epidemic:
+            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: 0)
+        case .replicating:
+            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: initialNumberOfCopies-1)
+        case .forwarding:
+            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 3, sequenceNumberValue: 0)
+        }
+        let notification = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: destinationAddress, message: message)
+        if simulator.evaluationLogger == nil { Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil") }
+        else { simulator.evaluationLogger!.log(notification, at: address) }
+        insert(notification)
+        if !blocked { connectionManager.advertise() }
+    }
+    
+    private func populateTransmitQueue() {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        let notifications = fetchAllTransmittables()
+        if notifications == nil || notifications!.isEmpty {
+            Logger.notification.debug("NotificationManager has no notifications to add to the transmitQueue")
+        } else {
+            transmitQueue = notifications!.reduce(into: [Notification: Bool]()) { $0[$1] = false }
+            Logger.notification.debug("NotificationManager has populated the transmitQueue with \(self.transmitQueue.count) notification(s): \(self.transmitQueue)")
+        }
+        if type == .forwarding { // Each new subscription shall contain at least one current HELLO notification
+            Logger.notification.trace("NotificationManager creates HELLO notification and adds it to the transmitQueue")
+            let controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: hasResetRediscoveryIntervalSinceLastHello ? 1 : 0)
+            let hello = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: address, message: "HELLO")
+            transmitQueue[hello] = false
+        }
+    }
+    
+    func transmitNotifications() { // Get's called after a consumer subscribed to this provider and each time a transmission fails
+        Logger.notification.trace("NotificationManager may attempt to \(#function)")
+        blocked = true
+        if transmitQueue.isEmpty { populateTransmitQueue() } // Prepare a current transmitQueue only at the first call, meaning for each new subscription, not every time a transmission fails
+        Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.transmitQueue.values.filter { !$0 }.count)/\(self.transmitQueue.count) notifications in the transmitQueue")
+        for element in transmitQueue {
+            let notification = element.key
+            guard !element.value else {
+                Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because it was already transmitted")
+                continue
+            }
+            Logger.notification.trace("NotificationManager attempts to transmit notification #\(Utils.printID(notification.hashedID))")
+            guard type.rawValue < 3 || notification.lastRediscovery == nil || notification.lastRediscovery! < Date(timeIntervalSinceNow: -rediscoveryInterval) else {
+                Logger.notification.debug("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because its rediscoveryInterval has not yet elapsed")
+                continue
+            }
+            guard transmitNotification(notification) else { return } // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
+            transmitQueue[notification] = true
+            notification.lastRediscovery = Date.now
+            rediscoveryInterval *= 2
+            continue
+        }
+        Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop")
+        hasResetRediscoveryIntervalSinceLastHello = false
+        Logger.notification.trace("NotificationManager creates GOODBYE notification")
+        let controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 0, sequenceNumberValue: 0)
+        let goodbye = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: address, message: "GOODBYE")
+        guard transmitNotification(goodbye) else { return } // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
+        Logger.notification.info("NotificationManager transmitted GOODBYE, will remove all notifications from the transmitQueue and eventually start to advertise again")
+        transmitQueue.removeAll()
+        blocked = false
+    }
+    
+    private func transmitNotification(_ notification: Notification) -> Bool {
+        Logger.notification.debug("NotificationManager attempts to \(#function) \(notification.description) with message: '\(notification.message)'")
+        
+        var newControlByte = notification.controlByte
+        if notification.controlByte.destinationControlValue > 0 {
+            
+            switch type! {
+            case .direct, .epidemic:
+                Logger.notification.trace("NotificationManager did not modify the controlByte")
+                
+            case .replicating:
+                do {
+                    try newControlByte.setSequenceNumber(to: notification.controlByte.sequenceNumberValue / 2)
+                    Logger.notification.trace("NotificationManager halfed the sequenceNumberValue")
+                } catch BleepError.invalidControlByteValue {
+                    try! newControlByte.setDestinationControl(to: 2)
+                    Logger.notification.trace("NotificationManager could not half the sequenceNumberValue and has therefore setDestinationControl(to: 2)")
+                } catch {
+                    Logger.notification.error("NotificationManager encountered an unexpected error while trying to modify the controlByte")
+                    return false
+                }
+                Logger.notification.debug("NotificationManager will \(#function) notification #\(Utils.printID(notification.hashedID)) with a newControlByte: \(newControlByte.description)")
+            
+            case .forwarding:
+                if notification.controlByte.destinationControlValue > 1 {
+                    notification.collectedUtilites.insert(computeUtility(for: notification.hashedDestinationAddress))
+                    Logger.notification.debug("NotificationManager attempts to determine the utilityThreshold for notification #\(Utils.printID(notification.hashedID)) based on the following collectedUtilites: \(notification.collectedUtilites)")
+                    let utilityThreshold = notification.collectedUtilites.sorted(by: >)[0]
+                    try! notification.controlByte.setSequenceNumber(to: utilityThreshold)
+                    Logger.notification.trace("NotificationManager setSequenceNumber(to:) utilityThreshold \(utilityThreshold)")
+                    if notification.sentTimestamp > Date(timeIntervalSinceNow: -utilityCollectionTimeout) {
+                        try! notification.controlByte.setDestinationControl(to: 3)
+                    } else {
+                        try! notification.controlByte.setDestinationControl(to: 2)
+                    }
+                    newControlByte = notification.controlByte
+                    Logger.notification.debug("NotificationManager will \(#function) notification #\(Utils.printID(notification.hashedID)) with a newControlByte: \(newControlByte.description)")
+                }
+            }
+        }
+        var data = Data()
+        data.append(newControlByte.value)
+        data.append(notification.hashedID)
+        data.append(notification.hashedDestinationAddress)
+        data.append(notification.hashedSourceAddress)
+        data.append(notification.sentTimestampData)
+        assert(data.count == minNotificationLength)
+        if let messageData = notification.message.data(using: .utf8) { data.append(messageData) }
+        if connectionManager.publish(data) {
+            Logger.notification.info("NotificationManager transmitted notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
+            return true
+        } else {
+            Logger.notification.warning("NotificationManager did not transmit notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
+            return false
+        }
+    }
+    
+    private func respond(_ response: Response, to id: String) {
+        Logger.notification.trace("NotificationManager attempts to \(#function)")
+        var data = Data()
+        data.append(response.controlByte.value)
+        data.append(response.hashedID)
+        assert(data.count == responseLength)
+        if connectionManager.write(data, to: id) {
+            Logger.notification.info("NotificationManager did \(#function) \(response.description) to '\(Utils.printID(id))'")
+        } else {
+            Logger.notification.error("NotificationManager did not \(#function) \(response.description) to '\(Utils.printID(id))'")
+        }
+    }
+    
+    func receiveResponse(_ data: Data) -> Bool {
+        Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count) bytes")
+        guard data.count == responseLength else {
+            Logger.notification.error("NotificationManager will ignore the response data as it's not \(self.responseLength) bytes long")
+            return false
+        }
+        let response = Response(controlByte: ControlByte(UInt8(data[0])), hashedID: data.subdata(in: 1..<data.count))
+        if simulator.evaluationLogger == nil { Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil") }
+        else { simulator.evaluationLogger!.log(response, at: address) }
+        
+        guard type.rawValue > 1 else {
+            Logger.notification.error("NotificationManager does not support \(#function)")
+            return false
+        }
+        Logger.notification.debug("NotificationManager attempts to \(#function) \(response.description)")
+        
+        guard response.controlByte.destinationControlValue > 0 else {
+            Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 0")
+            return false
+        }
+        guard let notification = fetch(with: data) else {
+            Logger.notification.error("NotificationManager did not find a matching notification in storage")
+            return false
+        }
+        guard notification.controlByte.destinationControlValue > 0 else {
+            Logger.notification.error("NotificationManager will ignore the response because it matches a notification with destinationControlValue 0")
+            return false
+        }
+        guard response.controlByte.destinationControlValue != 2 else { // Accepted by destination
+            try! notification.controlByte.setDestinationControl(to: 0)
+            notification.hasBeenRespondedTo = true
+            Logger.notification.info("NotificationManager has set setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because it hasBeenRespondedTo by the destination")
+            return true
+        }
+        guard !notification.hasBeenRespondedTo else {
+            Logger.notification.warning("NotificationManager will ignore the response because it matches a notification that already hasBeenRespondedTo")
+            return false
+        }
+        if type == .replicating {
+            guard response.controlByte.destinationControlValue != 3 else {
+                Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 3")
+                return false
+            } // controlByte.destinationControlValue == 1
+            do {
+                try notification.controlByte.setSequenceNumber(to: notification.controlByte.sequenceNumberValue / 2)
+                notification.hasBeenRespondedTo = true
+                Logger.notification.info("NotificationManager halfed the sequenceNumberValue for notification #\(Utils.printID(notification.hashedID))")
+                return true
+            } catch BleepError.invalidControlByteValue {
+                try! notification.controlByte.setDestinationControl(to: 2)
+                notification.hasBeenRespondedTo = true
+                Logger.notification.info("NotificationManager could not half the sequenceNumberValue and therefore has set setDestinationControl(to: 2) for notification #\(Utils.printID(notification.hashedID))")
+                return true
+            } catch {
+                Logger.notification.error("NotificationManager encountered an unexpected error while trying to modify the controlByte for notification #\(Utils.printID(notification.hashedID))")
+                return false
+            }
+        } else { // type == .forwarding
+            guard response.controlByte.destinationControlValue != 1 else {
+                Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 1")
+                return false
+            } // controlByte.destinationControlValue == 3
+            let utilityResponse = response.controlByte.sequenceNumberValue
+            notification.collectedUtilites.insert(utilityResponse)
+            Logger.notification.info("NotificationManager has received utility response \(utilityResponse) and added it to the collectedUtilites set for notification #\(Utils.printID(notification.hashedID)): \(notification.collectedUtilites)")
+            return true
+        }
+    }
+}
+
+// MARK: NotificationConsumer
+
+extension BleepManager: NotificationConsumer {
     
     func receiveNotification(_ data: Data, from id: String) {
         Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes from '\(Utils.printID(id))'")
@@ -276,7 +496,7 @@ class BleepManager: EvaluableNotificationManager {
         case .epidemic:
             return notification.controlByte.destinationControlValue == 1
             
-        case .binarySprayAndWait:
+        case .replicating:
             if notification.hashedDestinationAddress == address.hashed {
                 let response = Response(controlByte: try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: 0), hashedID: notification.hashedID)
                 respond(response, to: id)
@@ -287,10 +507,10 @@ class BleepManager: EvaluableNotificationManager {
                 return true
             } else { return false }
             
-        case .disconnectedTransitiveCommunication:
+        case .forwarding:
             if notification.controlByte.destinationControlValue == 1 {
                 handleHello(notification)
-                return true
+                return false
             } else if notification.hashedDestinationAddress == address.hashed {
                 let response = Response(controlByte: try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: 0), hashedID: notification.hashedID)
                 respond(response, to: id)
@@ -318,17 +538,19 @@ class BleepManager: EvaluableNotificationManager {
     
     private func handleHello(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) \(notification.description)")
-        if notification.controlByte.sequenceNumberValue > 0 || fetchAll(from: notification.hashedSourceAddress) == nil {
-            Logger.notification.trace("NotificationManager received a HELLO notification from an unknown source or by a source indicating its RDI has been reset since the last HELLO message")
-            if !isRediscoveryIntervalResetDelayed {
-                rediscoveryInterval = initialRediscoveryInterval
-                hasResetRediscoveryIntervalSinceLastHello = true
-            }
-            isRediscoveryIntervalResetDelayed.toggle()
+        guard notification.controlByte.sequenceNumberValue > 0 || fetchAll(from: notification.hashedSourceAddress) == nil else { return }
+        Logger.notification.trace("NotificationManager received a HELLO notification from an unknown source or by a source indicating its RDI has been reset since the last HELLO message")
+        if !isRediscoveryIntervalResetDelayed {
+            rediscoveryInterval = initialRediscoveryInterval
+            hasResetRediscoveryIntervalSinceLastHello = true
         }
-        try! notification.controlByte.setDestinationControl(to: 0)
-        Logger.notification.trace("NotificationManager has setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because the HELLO message should not propagate")
+        isRediscoveryIntervalResetDelayed.toggle()
     }
+}
+
+// MARK: Utility computation
+
+extension BleepManager {
     
     private func computeUtility(for hashedDestinationAddress: Data) -> UInt8 {
         Logger.notification.debug("NotificationManager attempts to \(#function) hashedDestinationAddress (\(Utils.printID(hashedDestinationAddress)))")
@@ -352,225 +574,11 @@ class BleepManager: EvaluableNotificationManager {
         UIDevice.current.isBatteryMonitoringEnabled = false
         return Double(batteryLevel)
     }
-    
-    func receiveResponse(_ data: Data) -> Bool {
-        Logger.notification.debug("NotificationManager attempts to \(#function) of \(data.count) bytes")
-        guard data.count == responseLength else {
-            Logger.notification.error("NotificationManager will ignore the response data as it's not \(self.responseLength) bytes long")
-            return false
-        }
-        let response = Response(controlByte: ControlByte(UInt8(data[0])), hashedID: data.subdata(in: 1..<data.count))
-        if simulator.evaluationLogger == nil { Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil") }
-        else { simulator.evaluationLogger!.log(response, at: address) }
-        
-        guard type.rawValue > 1 else {
-            Logger.notification.error("NotificationManager does not support \(#function)")
-            return false
-        }
-        Logger.notification.debug("NotificationManager attempts to \(#function) \(response.description)")
-        
-        guard response.controlByte.destinationControlValue > 0 else {
-            Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 0")
-            return false
-        }
-        guard let notification = fetch(with: data) else {
-            Logger.notification.error("NotificationManager did not find a matching notification in storage")
-            return false
-        }
-        guard notification.controlByte.destinationControlValue > 0 else {
-            Logger.notification.error("NotificationManager will ignore the response because it matches a notification with destinationControlValue 0")
-            return false
-        }
-        guard response.controlByte.destinationControlValue != 2 else { // Accepted by destination
-            try! notification.controlByte.setDestinationControl(to: 0)
-            notification.hasBeenRespondedTo = true
-            Logger.notification.info("NotificationManager has set setDestinationControl(to: 0) for notification #\(Utils.printID(notification.hashedID)) because it hasBeenRespondedTo by the destination")
-            return true
-        }
-        guard !notification.hasBeenRespondedTo else {
-            Logger.notification.warning("NotificationManager will ignore the response because it matches a notification that already hasBeenRespondedTo")
-            return false
-        }
-        if type == .binarySprayAndWait {
-            guard response.controlByte.destinationControlValue != 3 else {
-                Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 3")
-                return false
-            } // controlByte.destinationControlValue == 1
-            do {
-                try notification.controlByte.setSequenceNumber(to: notification.controlByte.sequenceNumberValue / 2)
-                notification.hasBeenRespondedTo = true
-                Logger.notification.info("NotificationManager halfed the sequenceNumberValue for notification #\(Utils.printID(notification.hashedID))")
-                return true
-            } catch BleepError.invalidControlByteValue {
-                try! notification.controlByte.setDestinationControl(to: 2)
-                notification.hasBeenRespondedTo = true
-                Logger.notification.info("NotificationManager could not half the sequenceNumberValue and therefore has set setDestinationControl(to: 2) for notification #\(Utils.printID(notification.hashedID))")
-                return true
-            } catch {
-                Logger.notification.error("NotificationManager encountered an unexpected error while trying to modify the controlByte for notification #\(Utils.printID(notification.hashedID))")
-                return false
-            }
-        } else { // type == .disconnectedTransitiveCommunication
-            guard response.controlByte.destinationControlValue != 1 else {
-                Logger.notification.error("NotificationManager does not support \(#function) with destinationControlValue 1")
-                return false
-            } // controlByte.destinationControlValue == 3
-            let utilityResponse = response.controlByte.sequenceNumberValue
-            notification.collectedUtilites.insert(utilityResponse)
-            Logger.notification.info("NotificationManager has received utility response \(utilityResponse) and added it to the collectedUtilites set for notification #\(Utils.printID(notification.hashedID)): \(notification.collectedUtilites)")
-            return true
-        }
+}
 
-    }
-    
-    // MARK: sending
-    
-    func send(_ message: String, to destinationAddress: Address) {
-        Logger.notification.debug("NotificationManager attempts to \(#function) message '\(message)' to \(destinationAddress.description)")
-        var controlByte: ControlByte!
-        switch type! {
-        case .direct:
-            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 2, sequenceNumberValue: 0)
-        case .epidemic:
-            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: 0)
-        case .binarySprayAndWait:
-            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: initialNumberOfCopies-1)
-        case .disconnectedTransitiveCommunication:
-            controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 3, sequenceNumberValue: 0)
-        }
-        let notification = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: destinationAddress, message: message)
-        if simulator.evaluationLogger == nil { Logger.notification.warning("NotificationManager did not log for evaluation because the evaluationLogger property of the simulator is nil") }
-        else { simulator.evaluationLogger!.log(notification, at: address) }
-        insert(notification)
-        if !blocked { connectionManager.advertise() }
-    }
-    
-    private func populateTransmitQueue() {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        let notifications = fetchAllTransmittables()
-        if notifications == nil || notifications!.isEmpty {
-            Logger.notification.debug("NotificationManager has no notifications to add to the transmitQueue")
-        } else {
-            transmitQueue = notifications!.reduce(into: [Notification: Bool]()) { $0[$1] = false }
-            Logger.notification.debug("NotificationManager has populated the transmitQueue with \(self.transmitQueue.count) notification(s): \(self.transmitQueue)")
-        }
-    }
-    
-    func transmitNotifications() { // Get's called after a consumer subscribed to this provider and each time a transmission fails
-        Logger.notification.trace("NotificationManager may attempt to \(#function)")
-        blocked = true
-        
-        if transmitQueue.isEmpty { // Prepare a current transmitQueue only at the first call, meaning for each new subscription, not every time a transmission fails
-            if type == .disconnectedTransitiveCommunication { // Each new subscription shall contain at least one current HELLO notification
-                Logger.notification.trace("NotificationManager creates HELLO notification")
-                let controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 1, sequenceNumberValue: hasResetRediscoveryIntervalSinceLastHello ? 1 : 0)
-                let hello = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: address, message: "HELLO")
-                insert(hello)
-            }
-            populateTransmitQueue()
-        }
-        
-        Logger.notification.debug("NotificationManager attempts to \(#function) with \(self.transmitQueue.values.filter { !$0 }.count)/\(self.transmitQueue.count) notifications in the transmitQueue")
-        for element in transmitQueue {
-            let notification = element.key
-            guard !element.value else {
-                Logger.notification.trace("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because it was already transmitted")
-                continue
-            }
-            Logger.notification.trace("NotificationManager attempts to transmit notification #\(Utils.printID(notification.hashedID))")
-            guard type.rawValue < 3 || notification.lastRediscovery == nil || notification.lastRediscovery! < Date(timeIntervalSinceNow: -rediscoveryInterval) else {
-                Logger.notification.debug("NotificationManager skips transmitting notification #\(Utils.printID(notification.hashedID)) because its rediscoveryInterval has not yet elapsed")
-                continue
-            }
-            guard transmitNotification(notification) else { return } // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
-            transmitQueue[notification] = true
-            notification.lastRediscovery = Date.now
-            rediscoveryInterval *= 2
-            continue
-        }
-        Logger.notification.trace("NotificationManager skipped or finished the \(#function) loop")
-        hasResetRediscoveryIntervalSinceLastHello = false
-        
-        Logger.notification.trace("NotificationManager creates GOODBYE notification")
-        let controlByte = try! ControlByte(protocolValue: type.rawValue, destinationControlValue: 0, sequenceNumberValue: 0)
-        let goodbye = Notification(controlByte: controlByte, sourceAddress: address, destinationAddress: address, message: "GOODBYE")
-        guard transmitNotification(goodbye) else { return } // peripheralManagerIsReady(toUpdateSubscribers) will call transmitNotifications() again
-        Logger.notification.info("NotificationManager transmitted GOODBYE, will remove all notifications from the sendQueue and eventually start to advertise again")
-        transmitQueue.removeAll()
-        blocked = false
-    }
-    
-    private func transmitNotification(_ notification: Notification) -> Bool {
-        Logger.notification.debug("NotificationManager attempts to \(#function) \(notification.description) with message: '\(notification.message)'")
-        
-        var newControlByte = notification.controlByte
-        if notification.controlByte.destinationControlValue > 0 {
-            
-            switch type! {
-            case .direct, .epidemic:
-                Logger.notification.trace("NotificationManager did not modify the controlByte")
-                
-            case .binarySprayAndWait:
-                do {
-                    try newControlByte.setSequenceNumber(to: notification.controlByte.sequenceNumberValue / 2)
-                    Logger.notification.trace("NotificationManager halfed the sequenceNumberValue")
-                } catch BleepError.invalidControlByteValue {
-                    try! newControlByte.setDestinationControl(to: 2)
-                    Logger.notification.trace("NotificationManager could not half the sequenceNumberValue and has therefore setDestinationControl(to: 2)")
-                } catch {
-                    Logger.notification.error("NotificationManager encountered an unexpected error while trying to modify the controlByte")
-                    return false
-                }
-                Logger.notification.debug("NotificationManager will \(#function) notification #\(Utils.printID(notification.hashedID)) with a newControlByte: \(newControlByte.description)")
-            
-            case .disconnectedTransitiveCommunication:
-                if notification.controlByte.destinationControlValue > 1 {
-                    notification.collectedUtilites.insert(computeUtility(for: notification.hashedDestinationAddress))
-                    Logger.notification.debug("NotificationManager attempts to determine the utilityThreshold for notification #\(Utils.printID(notification.hashedID)) based on the following collectedUtilites: \(notification.collectedUtilites)")
-                    let utilityThreshold = notification.collectedUtilites.sorted(by: >)[0]
-                    try! notification.controlByte.setSequenceNumber(to: utilityThreshold)
-                    Logger.notification.trace("NotificationManager setSequenceNumber(to:) utilityThreshold \(utilityThreshold)")
-                    if notification.sentTimestamp > Date(timeIntervalSinceNow: -utilityCollectionTimeout) {
-                        try! notification.controlByte.setDestinationControl(to: 3)
-                    } else {
-                        try! notification.controlByte.setDestinationControl(to: 2)
-                    }
-                    newControlByte = notification.controlByte
-                    Logger.notification.debug("NotificationManager will \(#function) notification #\(Utils.printID(notification.hashedID)) with a newControlByte: \(newControlByte.description)")
-                }
-            }
-        }
-        var data = Data()
-        data.append(newControlByte.value)
-        data.append(notification.hashedID)
-        data.append(notification.hashedDestinationAddress)
-        data.append(notification.hashedSourceAddress)
-        data.append(notification.sentTimestampData)
-        assert(data.count == minNotificationLength)
-        if let messageData = notification.message.data(using: .utf8) { data.append(messageData) }
-        if connectionManager.publish(data) {
-            Logger.notification.info("NotificationManager transmitted notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
-            return true
-        } else {
-            Logger.notification.warning("NotificationManager did not transmit notification data of \(data.count-self.minNotificationLength)+\(self.minNotificationLength)=\(data.count) bytes")
-            return false
-        }
-    }
-    
-    private func respond(_ response: Response, to id: String) {
-        Logger.notification.trace("NotificationManager attempts to \(#function)")
-        var data = Data()
-        data.append(response.controlByte.value)
-        data.append(response.hashedID)
-        assert(data.count == responseLength)
-        if connectionManager.write(data, to: id) {
-            Logger.notification.info("NotificationManager did \(#function) \(response.description) to '\(Utils.printID(id))'")
-        } else {
-            Logger.notification.error("NotificationManager did not \(#function) \(response.description) to '\(Utils.printID(id))'")
-        }
-    }
-    
-    // MARK: persisting
+// MARK: Persistence
+
+extension BleepManager {
     
     private func insert(_ notification: Notification) {
         Logger.notification.debug("NotificationManager attempts to \(#function) notification #\(Utils.printID(notification.hashedID))")
@@ -621,7 +629,7 @@ class BleepManager: EvaluableNotificationManager {
     private func fetch(with hashedID: Data) -> Notification? {
         Logger.notification.debug("NotificationManager attempts to \(#function) #\(Utils.printID(hashedID))")
         let predicate = #Predicate<Notification> { $0.hashedID == hashedID }
-        return try? context.fetch(FetchDescriptor<Notification>(predicate: predicate))[0]
+        return try? context.fetch(FetchDescriptor<Notification>(predicate: predicate)).first
     }
     
     private func updateAllTransmittables() {

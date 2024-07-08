@@ -54,7 +54,6 @@ class BluetoothManager: ConnectionManager {
     private var centralManagerDelegate: CentralManagerDelegate! // Consumer
         
     required init(notificationManager: NotificationManager) {
-        Logger.bluetooth.trace("BluetoothManager initializes")
         self.peripheralManagerDelegate = PeripheralManagerDelegate(notificationManager: notificationManager, bluetoothManager: self)
         self.centralManagerDelegate = CentralManagerDelegate(notificationManager: notificationManager, bluetoothManager: self)
         Logger.bluetooth.trace("BluetoothManager initialized with randomIdentifier '\(self.randomIdentifier)'")

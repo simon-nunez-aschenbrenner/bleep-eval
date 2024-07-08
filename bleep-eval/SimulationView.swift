@@ -150,7 +150,7 @@ struct SimulationView: View {
                 
                 // MARK: DTC
                 
-                if notificationManager.type == .disconnectedTransitiveCommunication {
+                if notificationManager.type == .forwarding {
                     Stepper("Maximum UCT: \(utilityCollectionTimeoutFactor * 10) seconds", value: $utilityCollectionTimeoutFactor, in: 1...16)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
@@ -193,7 +193,7 @@ struct SimulationView: View {
                         .disabled(!isSending || notificationManager.simulator.isRunning)
                         .listRowSeparator(.hidden)
                     
-                    if notificationManager.type == .binarySprayAndWait {
+                    if notificationManager.type == .replicating {
                         Stepper(numberOfCopies > 1 ? "and \(numberOfCopies) copies each" : "and 1 copy each", value: $numberOfCopies, in: 1...16)
                             .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                             .foregroundColor(isSending ? Color("bleepPrimary") : Color("bleepSecondary"))

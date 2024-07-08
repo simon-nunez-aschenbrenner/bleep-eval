@@ -81,7 +81,6 @@ class EvaluationLogger {
     var fileURL: URL
 
     init(deviceName: String?, runID: UInt, clearExistingLog: Bool = false) {
-        Logger.evaluation.debug("EvaluationLogger initializes with runID \(runID)")
         self.deviceName = deviceName?.lowercased() ?? "unknown"
         self.runID = runID
         self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName).\(String(format: "%02u", self.runID)).csv")

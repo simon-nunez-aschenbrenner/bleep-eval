@@ -18,12 +18,12 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     private(set) var centralManager: CBCentralManager!
     private(set) var notificationResponse: CBCharacteristic?
     private var peripherals: Set<CBPeripheral> = []
-    unowned private var notificationManager: NotificationManager!
+    unowned private var notificationManager: NotificationConsumer!
     unowned private var bluetoothManager: BluetoothManager!
         
     // MARK: initializing methods
             
-    init(notificationManager: NotificationManager, bluetoothManager: BluetoothManager) {
+    init(notificationManager: NotificationConsumer, bluetoothManager: BluetoothManager) {
         super.init()
         self.notificationManager = notificationManager
         self.bluetoothManager = bluetoothManager
@@ -85,7 +85,7 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
             }
         }
         guard let randomIdentifier = advertisementData[CBAdvertisementDataLocalNameKey] as? String else {
-            Logger.central.error("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as did not advertise an randomIdentifier")
+            Logger.central.error("Central will ignore peripheral '\(Utils.printID(peripheral.identifier.uuidString))' as it did not advertise an randomIdentifier")
             return
         }
         guard !bluetoothManager.recentRandomIdentifiers.contains(randomIdentifier) else {

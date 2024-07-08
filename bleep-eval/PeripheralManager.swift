@@ -16,12 +16,12 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     private(set) var notificationSource: CBMutableCharacteristic!
     private(set) var notificationResponse: CBMutableCharacteristic!
     private var service: CBMutableService!
-    unowned private var notificationManager: NotificationManager!
+    unowned private var notificationManager: NotificationProvider!
     unowned private var bluetoothManager: BluetoothManager!
             
     // MARK: initializing methods
     
-    init(notificationManager: NotificationManager, bluetoothManager: BluetoothManager) {
+    init(notificationManager: NotificationProvider, bluetoothManager: BluetoothManager) {
         super.init()
         self.notificationManager = notificationManager
         self.bluetoothManager = bluetoothManager

@@ -13,14 +13,11 @@ import OSLog
 // MARK: ConnectionManager
 
 protocol ConnectionManager {
-    
     var maxNotificationLength: Int! { get }
-    
     init(notificationManager: NotificationManager)
-    
     func advertise()
     func publish(_ data: Data) -> Bool
-    func acknowledge(_ data: Data, to id: String) -> Bool
+    func write(_ data: Data, to id: String) -> Bool
     func disconnect(_ id: String)
     func disconnect()
 }
@@ -32,7 +29,7 @@ class BluetoothManager: ConnectionManager {
     
     static let serviceUUID = CBUUID(string: "08373f8c-3635-4b88-8664-1ccc65a60aae")
     static let notificationSourceUUID = CBUUID(string: "c44f6cf4-5bdd-4c8a-b72c-2931be44af0a")
-    static let notificationAcknowledgementUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
+    static let notificationResponseUUID = CBUUID(string: "9e201989-0725-4fa6-8991-5a1ed1c084b1")
     static let centralIdentifierKey = "com.simon.bleep-eval.central"
     static let peripheralIdentifierKey = "com.simon.bleep-eval.peripheral"
     
@@ -42,8 +39,8 @@ class BluetoothManager: ConnectionManager {
             return "Bleep Notification Service"
         case BluetoothManager.notificationSourceUUID.uuidString:
             return "Bleep Notification Source Characteristic"
-        case BluetoothManager.notificationAcknowledgementUUID.uuidString:
-            return "Bleep Notification Acknowledgement Characteristic"
+        case BluetoothManager.notificationResponseUUID.uuidString:
+            return "Bleep Notification Response Characteristic"
         default:
             return cbuuid.uuidString
         }
@@ -78,14 +75,14 @@ class BluetoothManager: ConnectionManager {
         return peripheralManagerDelegate.peripheralManager.updateValue(data, for: peripheralManagerDelegate.notificationSource, onSubscribedCentrals: nil)
     }
     
-    func acknowledge(_ data: Data, to id: String) -> Bool {
+    func write(_ data: Data, to id: String) -> Bool {
         Logger.bluetooth.debug("BluetoothManager attempts to \(#function) of \(data.count) bytes to '\(Utils.printID(id))'")
-        guard let notificationAcknowledgement = centralManagerDelegate.notificationAcknowledgement else { // TODO: throw
-            Logger.bluetooth.error("BluetoothManager can't \(#function) because the centralManagerDelegate notificationAcknowledgement characteristic property is nil")
+        guard let notificationResponse = centralManagerDelegate.notificationResponse else {
+            Logger.bluetooth.error("BluetoothManager can't \(#function) because the centralManagerDelegate notificationResponse characteristic property is nil")
             return false
         }
         guard let peripheral = getPeripheral(id) else { return false }
-        peripheral.writeValue(data, for: notificationAcknowledgement, type: .withResponse)
+        peripheral.writeValue(data, for: notificationResponse, type: .withResponse)
         return true
     }
     
@@ -111,7 +108,7 @@ class BluetoothManager: ConnectionManager {
     private func getPeripheral(_ id: String) -> CBPeripheral? {
         Logger.bluetooth.debug("BluetoothManager attempts to \(#function) '\(Utils.printID(id))'")
         let peripherals = centralManagerDelegate.centralManager.retrievePeripherals(withIdentifiers: [UUID(uuidString: id)!])
-        guard !peripherals.isEmpty else { // TODO: throw
+        guard !peripherals.isEmpty else {
             Logger.central.error("BluetoothManager can't \(#function) because there are no matching peripherals")
             return nil
         }

@@ -65,8 +65,9 @@ struct ControlByte: Codable, CustomStringConvertible, Equatable {
 @Model
 class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
+    @Attribute(.unique)
+    let hashedID: Data
     var controlByte: ControlByte
-    @Attribute(.unique) let hashedID: Data
     let hashedSourceAddress: Data
     let hashedDestinationAddress: Data
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
@@ -74,11 +75,9 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     let sentTimestamp: Date
     let receivedTimestamp: Date?
-    var hasBeenAcknowledged: Bool = false
-    var lastRediscovery: Date? {
-        didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") }
-    }
-    var collectedUtilites: [UInt8] = []
+    var hasBeenRespondedTo: Bool = false
+    var lastRediscovery: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscovery set to \(self.lastRediscovery)") } }
+    var collectedUtilites: Set<UInt8> = []
     
     var description: String {
         return "#\(Utils.printID(hashedID)) \(controlByte.description) from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"
@@ -91,7 +90,7 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
         self.controlByte = controlByte
         self.hashedSourceAddress = sourceAddress.hashed
         self.hashedDestinationAddress = destinationAddress.hashed
-        self.sentTimestamp = Date()
+        self.sentTimestamp = Date.now
         self.receivedTimestamp = nil
         self.message = message
         Logger.notification.debug("Notification \(self.description) with message '\(self.message)' initialized")
@@ -128,5 +127,35 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     
     static func < (lhs: Notification, rhs: Notification) -> Bool {
         return lhs.receivedTimestamp ?? lhs.sentTimestamp < rhs.receivedTimestamp ?? rhs.sentTimestamp
+    }
+}
+
+struct Response: Equatable, Comparable, CustomStringConvertible, Hashable {
+    
+    let controlByte: ControlByte
+    let hashedID: Data
+    let receivedTimestamp: Date
+    
+    var description: String {
+        return "#\(Utils.printID(hashedID)) \(controlByte.description)"
+    }
+    
+    init(controlByte: ControlByte, hashedID: Data) {
+        self.hashedID = hashedID
+        self.controlByte = controlByte
+        self.receivedTimestamp = Date.now
+        Logger.notification.debug("Response #\(Utils.printID(hashedID)) \(controlByte.description) initialized")
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(hashedID)
+    }
+    
+    static func == (lhs: Response, rhs: Response) -> Bool {
+        return lhs.hashedID == rhs.hashedID
+    }
+    
+    static func < (lhs: Response, rhs: Response) -> Bool {
+        return lhs.receivedTimestamp < rhs.receivedTimestamp
     }
 }

@@ -14,9 +14,8 @@ struct SimulationView: View {
     
     let initialCountdownTime: Int = Utils.initialCountdownTime
     
-    unowned private var notificationManager: NotificationManager
+    unowned private var notificationManager: EvaluableNotificationManager
     @State private var runID: Int = 0
-    @State private var countHops: Bool = true
     @State private var rssiThresholdFactor: Int = -8
     @State private var notificationTimeToLiveFactor: Int = 5
     @State private var utilityCollectionTimeoutFactor: Int = 1
@@ -36,7 +35,7 @@ struct SimulationView: View {
         
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
-    init(_ notificationManager: NotificationManager) {
+    init(_ notificationManager: EvaluableNotificationManager) {
         self.notificationManager = notificationManager
         self.destinations = Set(notificationManager.contacts)
     }
@@ -108,7 +107,7 @@ struct SimulationView: View {
                 // MARK: RSSI
                 
                 Button(action: { withAnimation { showRSSITool.toggle() } }) {
-                    Stepper("RSSI threshold: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
+                    Stepper("Minimum RSSI: \(rssiThresholdFactor * 8) dBM", value: $rssiThresholdFactor, in: -16...0)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                         .listRowSeparator(.hidden)
@@ -117,7 +116,7 @@ struct SimulationView: View {
                 }
                 
                 if showRSSITool {
-                    Text("Last measured RSSI value: \(notificationManager.lastRSSIValue ?? 0) dBm")
+                    Text("Last measured RSSI: \(notificationManager.lastRSSIValue ?? 0) dBm")
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                         .listRowSeparator(.hidden)
@@ -140,23 +139,9 @@ struct SimulationView: View {
                     .disabled(notificationManager.simulator.isRunning)
                 }
                 
-                // MARK: countHops
-                
-                HStack {
-                    Text("Count hops")
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .foregroundColor(Color("bleepPrimary"))
-                    Toggle("", isOn: $countHops)
-                        .padding(.trailing, Dimensions.largePadding)
-                        .tint(Color("bleepPrimary"))
-                        .disabled(notificationManager.simulator.isRunning)
-                        .onChange(of: countHops, initial: true) { notificationManager.countHops = countHops }
-                }
-                .listRowSeparator(.hidden)
-                
                 // MARK: TTL
                 
-                Stepper("Notification TTL: \(notificationTimeToLiveFactor) minutes", value: $notificationTimeToLiveFactor, in: 1...16)
+                Stepper("Maximum TTL: \(notificationTimeToLiveFactor) minutes", value: $notificationTimeToLiveFactor, in: 1...16)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
                     .disabled(notificationManager.simulator.isRunning)
@@ -166,7 +151,7 @@ struct SimulationView: View {
                 // MARK: DTC
                 
                 if notificationManager.type == .disconnectedTransitiveCommunication {
-                    Stepper("Collect utilities for: \(utilityCollectionTimeoutFactor * 10) seconds", value: $utilityCollectionTimeoutFactor, in: 1...16)
+                    Stepper("Maximum UCT: \(utilityCollectionTimeoutFactor * 10) seconds", value: $utilityCollectionTimeoutFactor, in: 1...16)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))
                         .disabled(notificationManager.simulator.isRunning)

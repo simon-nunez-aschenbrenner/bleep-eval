@@ -71,6 +71,7 @@ struct Utils {
 
     static let initialCountdownTime: Int = 3
     static let resetAddressContext = false
+    static let countHops = true
     static let suffixLength: Int = 5
     
     static func generateText(with length: Int, testPattern: Bool = true) -> String {

@@ -35,7 +35,7 @@ struct ManualView: View {
     private func sendMessage() {
         if !draft.isEmpty && destinationAddress != nil {
             Logger.view.info("View attempts to \(#function)")
-            notificationManager.sendNotification(draft, to: destinationAddress!)
+            notificationManager.send(draft, to: destinationAddress!)
             draft.removeAll()
         }
     }

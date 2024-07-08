@@ -131,7 +131,7 @@ struct MainView: View {
 struct NotificationView: View {
     
     let notification: Notification
-    unowned var notificationManager: NotificationManager
+    unowned var notificationManager: EvaluableNotificationManager
     @State private var showsMetadata = false
     private var displayText: String {
         if showsMetadata { return notification.description }
@@ -186,4 +186,5 @@ struct LogoView: View {
 
 #Preview {
     MainView()
+        .environment(BleepManager())
 }

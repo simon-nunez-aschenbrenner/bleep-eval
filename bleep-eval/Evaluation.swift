@@ -12,7 +12,7 @@ import UIKit
 @Observable
 class Simulator {
         
-    unowned private var notificationManager: NotificationManager
+    unowned private var notificationManager: EvaluableNotificationManager
     
     private var isSending: Bool = false
     private var frequency: Double = 0
@@ -24,7 +24,7 @@ class Simulator {
     private(set) var evaluationLogger: EvaluationLogger?
     private(set) var logFileURL: URL?
     
-    init(notificationManager: NotificationManager) {
+    init(notificationManager: EvaluableNotificationManager) {
         self.notificationManager = notificationManager
         Logger.evaluation.trace("Simulator initialized")
     }
@@ -58,7 +58,7 @@ class Simulator {
         timer.schedule(deadline: .now() + interval)
         timer.setEventHandler {
             let message: String = self.notificationManager.countHops ? "0" : Utils.generateText(with: Int.random(in: 0...self.notificationManager.maxMessageLength), testPattern: false)
-            self.notificationManager.sendNotification(message, to: self.destinations.randomElement()!)
+            self.notificationManager.send(message, to: self.destinations.randomElement()!)
             self.schedule(timer)
         }
     }
@@ -75,16 +75,16 @@ class Simulator {
 
 class EvaluationLogger {
         
-    private let deviceName: String!
-    private let runID: UInt!
+    private let deviceName: String
+    private let runID: UInt
     private let fileManager: FileManager = FileManager.default
     var fileURL: URL
 
-    init(deviceName: String?, runID: UInt!, clearExistingLog: Bool = false) {
+    init(deviceName: String?, runID: UInt, clearExistingLog: Bool = false) {
         Logger.evaluation.debug("EvaluationLogger initializes with runID \(runID)")
-        self.deviceName = deviceName ?? "unknown"
+        self.deviceName = deviceName?.lowercased() ?? "unknown"
         self.runID = runID
-        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName!.lowercased()).\(String(format: "%02u", self.runID)).csv")
+        self.fileURL = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("bleep-eval.\(self.deviceName).\(String(format: "%02u", self.runID)).csv")
         if !fileManager.fileExists(atPath: fileURL.path) {
             fileManager.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
             Logger.evaluation.trace("EvalutaionLogger created a new log file")
@@ -107,38 +107,61 @@ class EvaluationLogger {
     }
 
     func log(_ notification: Notification, at address: Address) {
-        // log entry format:
-        // deviceName;runID;currentAddress;currentTimestamp;status;notificationID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;messageLength;message/hopCount\n
         let currentTimestamp = Date.now
         Logger.evaluation.trace("EvaluationLogger attempts to log notification #\(Utils.printID(notification.hashedID)) at (\(Utils.printID(address.hashed)))")
         var stringBuilder: [String] = []
-        // Data provided by the device
+        // Data provided by the logger
         stringBuilder.append(self.deviceName)
         stringBuilder.append(String(self.runID))
         stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
         stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
-        var status: String = "0" // undefined
-        if notification.receivedTimestamp == nil { status = "1" } // created
-        else if address.hashed != notification.hashedSourceAddress { status = "2" } // forwarded
-        else if address.hashed == notification.hashedDestinationAddress { status = "3" } // received
-        stringBuilder.append(status)
+        stringBuilder.append("notification") // type
         // Data provided by the notification
-        stringBuilder.append(notification.hashedID.base64EncodedString()) // notificationID
+        stringBuilder.append(notification.hashedID.base64EncodedString())
         stringBuilder.append(String(notification.controlByte.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Replicating, 3 = Forwarding
-        stringBuilder.append(String(notification.controlByte.destinationControlValue)) // 0 = Nobody/Goodbye (reached destination), 1 = Anybody/Hello (in transit), 2 = Destination only/Better utility (in transit), 3 = Destination only/Utility probe (in transit)
-        stringBuilder.append(String(notification.controlByte.sequenceNumberValue)) // 0...15
+        stringBuilder.append(String(notification.controlByte.destinationControlValue)) // 0 = Nobody/Goodbye, 1 = Anybody/Hello, 2 = Destination only/Better utility, 3 = Destination only/Utility probe
+        stringBuilder.append(String(notification.controlByte.sequenceNumberValue)) // 0...15 = Copies/Utility threshold
         stringBuilder.append(notification.hashedSourceAddress.base64EncodedString())
         stringBuilder.append(String(notification.sentTimestamp.timeIntervalSinceReferenceDate as Double))
         stringBuilder.append(notification.hashedDestinationAddress.base64EncodedString())
         stringBuilder.append(notification.receivedTimestamp != nil ? String(notification.receivedTimestamp!.timeIntervalSinceReferenceDate as Double) : "")
-        stringBuilder.append(String(notification.message.count)) // 0...419
-        stringBuilder.append(String(notification.message)) // hop count 0...Int.max
+        stringBuilder.append(String(notification.message)) // 0...Int.max = hopCount
         let logEntry: String = stringBuilder.joined(separator: ";")
         Logger.evaluation.debug("EvaluationLogger attempts to append logEntry '\(logEntry)'")
-        let logEntryData = logEntry.appending("\n").data(using: .utf8)
+        log(logEntry.appending("\n").data(using: .utf8)!)
+    }
+    
+    func log(_ response: Response, at address: Address) {
+        let currentTimestamp = Date.now
+        Logger.evaluation.trace("EvaluationLogger attempts to log response #\(Utils.printID(response.hashedID)) at (\(Utils.printID(address.hashed)))")
+        var stringBuilder: [String] = []
+        // Data provided by the logger
+        stringBuilder.append(self.deviceName)
+        stringBuilder.append(String(self.runID))
+        stringBuilder.append(address.hashed.base64EncodedString()) // currentAddress
+        stringBuilder.append(String(currentTimestamp.timeIntervalSinceReferenceDate as Double))
+        stringBuilder.append("response") // type
+        // Data provided by the notification
+        stringBuilder.append(response.hashedID.base64EncodedString())
+        stringBuilder.append(String(response.controlByte.protocolValue)) // 0 = Direct, 1 = Epidemic, 2 = Replicating, 3 = Forwarding
+        stringBuilder.append(String(response.controlByte.destinationControlValue)) // 1 = Accepted, 2 = Accepted by destination, 3 = Utility response
+        stringBuilder.append(String(response.controlByte.sequenceNumberValue)) // 0...15 = Utility
+        stringBuilder.append("") // sourceAddress
+        stringBuilder.append("") // sentTimestamp
+        stringBuilder.append("") // destinationAddress
+        stringBuilder.append(String(response.receivedTimestamp.timeIntervalSinceReferenceDate as Double))
+        stringBuilder.append("") // hopCount
+        let logEntry: String = stringBuilder.joined(separator: ";")
+        Logger.evaluation.debug("EvaluationLogger attempts to append logEntry '\(logEntry)'")
+        log(logEntry.appending("\n").data(using: .utf8)!)
+    }
+    
+    private func log(_ data: Data) {
+        // log entry format
+        // deviceName;runID;currentAddress;currentTimestamp;type;hashedID;protocolValue;destinationControlValue;sequenceNumberValue;sourceAddress;sentTimestamp;destinationAddress;receivedTimestamp;hopCount\n
         if let fileHandle = try? FileHandle(forWritingTo: fileURL) {
             fileHandle.seekToEndOfFile()
-            fileHandle.write(logEntryData!)
+            fileHandle.write(data)
             fileHandle.closeFile()
             Logger.evaluation.trace("EvaluationLogger successfully appended the logEntry to the log file")
         } else {

@@ -18,7 +18,6 @@ struct SimulationView: View {
     @State private var runID: Int = 0
     @State private var rssiThresholdFactor: Int = -8
     @State private var notificationTimeToLiveFactor: Int = 5
-    @State private var utilityCollectionTimeoutFactor: Int = 1
     @State private var initialRediscoveryIntervalFactor: Int = 1
     @State private var isSending: Bool = false
     @State private var frequency: Int = 3
@@ -151,13 +150,6 @@ struct SimulationView: View {
                 // MARK: DTC
                 
                 if notificationManager.type == .forwarding {
-                    Stepper("Maximum UCT: \(utilityCollectionTimeoutFactor * 10) seconds", value: $utilityCollectionTimeoutFactor, in: 1...16)
-                        .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
-                        .foregroundColor(Color("bleepPrimary"))
-                        .disabled(notificationManager.simulator.isRunning)
-                        .listRowSeparator(.hidden)
-                        .onChange(of: utilityCollectionTimeoutFactor, initial: true) { notificationManager.utilityCollectionTimeout = TimeInterval(utilityCollectionTimeoutFactor * 10) }
-
                     Stepper("Minimum RDI: \(initialRediscoveryIntervalFactor * 10) seconds", value: $initialRediscoveryIntervalFactor, in: 1...16)
                         .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                         .foregroundColor(Color("bleepPrimary"))

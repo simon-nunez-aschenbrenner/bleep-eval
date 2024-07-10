@@ -114,14 +114,6 @@ class CentralManagerDelegate: NSObject, CBCentralManagerDelegate, CBPeripheralDe
     func peripheral(_ peripheral: CBPeripheral, didModifyServices invalidatedServices: [CBService]) {
 //        Logger.central.warning("Central attempts to re-discoverServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' because it didModifyServices: \(invalidatedServices)")
 //        peripheral.discoverServices([serviceUUID])
-        
-//        if invalidatedServices.contains(where: { $0.uuid.uuidString == self.serviceUUID.uuidString } ) {
-//            Logger.central.warning("Central attempts to re-discoverServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' because it didModifyService '\(BluetoothManager.getName(of: self.serviceUUID))'")
-//            peripheral.discoverServices([serviceUUID])
-//        } else {
-//            Logger.central.error("Central will ignore didModifyServices on peripheral '\(Utils.printID(peripheral.identifier.uuidString))' because the invalidatedServices did not match '\(BluetoothManager.getName(of: self.serviceUUID))'")
-//        }
-        
         Logger.central.error("Central will disconnect peripheral '\(Utils.printID(peripheral.identifier.uuidString))' because it didModifyServices: \(invalidatedServices)")
         centralManager.cancelPeripheralConnection(peripheral)
     }

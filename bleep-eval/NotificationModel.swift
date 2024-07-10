@@ -47,16 +47,19 @@ struct ControlByte: Codable, CustomStringConvertible, Equatable {
     mutating func setProtocol(to value: UInt8) throws {
         guard value < 4 else { throw BleepError.invalidControlByteValue }
         self.protocolValue = value
+        Logger.notification.debug("ControlByte protocolValue set to \(value)")
     }
     
     mutating func setDestinationControl(to value: UInt8) throws {
         guard value < 4 else { throw BleepError.invalidControlByteValue }
         self.destinationControlValue = value
+        Logger.notification.debug("ControlByte destinationControlValue set to \(value)")
     }
     
     mutating func setSequenceNumber(to value: UInt8) throws {
         guard value < 16 else { throw BleepError.invalidControlByteValue }
         self.sequenceNumberValue = value
+        Logger.notification.debug("ControlByte sequenceNumberValue set to \(value)")
     }
 }
 
@@ -70,14 +73,22 @@ class Notification: Equatable, Comparable, CustomStringConvertible, Hashable {
     var controlByte: ControlByte
     let hashedSourceAddress: Data
     let hashedDestinationAddress: Data
-    var message: String // TODO: Should be let when not counting hops
+    var message: String
     var sentTimestampData: Data { return Notification.encodeTimestamp(date: sentTimestamp) }
     
     let sentTimestamp: Date
     let receivedTimestamp: Date?
-    var hasBeenRespondedTo: Bool = false
-    var lastRediscoveryTimestamp: Date? { didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscoveryTimestamp set to \(self.lastRediscovery)") } }
     var collectedUtilites: [UInt8:String?] = [:]
+    var hasBeenRespondedTo: Bool = false {
+        didSet { Logger.notification.debug("Notification #\(self.hashedID) \(self.hasBeenRespondedTo ? "hasBeenRespondedTo" : "has not beenRespondedTo")") }
+    }
+    var lastRediscoveryTimestamp: Date? {
+        didSet { Logger.notification.debug("Notification #\(self.hashedID) lastRediscoveryTimestamp set to \(self.lastRediscovery)") }
+    }
+    var hasBeenRetriedToTransmitDirectly: Bool = false {
+        didSet { Logger.notification.debug("Notification #\(self.hashedID) \(self.hasBeenRetriedToTransmitDirectly ? "hasBeenRetriedToTransmitDirectly" : "has not beenRetriedToTransmitDirectly")") }
+    }
+    
     
     var description: String {
         return "#\(Utils.printID(hashedID)) \(controlByte.description) from (\(Utils.printID(hashedSourceAddress))) at \(Utils.printTimestamp(sentTimestamp)) to (\(Utils.printID(hashedDestinationAddress)))\(receivedTimestamp == nil ? "" : " at " + Utils.printTimestamp(receivedTimestamp!)) and message length \(message.count)"

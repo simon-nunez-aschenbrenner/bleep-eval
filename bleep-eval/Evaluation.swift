@@ -39,7 +39,7 @@ class Simulator {
         self.logFileURL = nil
         self.timer?.cancel()
         self.timer = nil
-        self.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: true) // TODO: change to false
+        self.evaluationLogger = EvaluationLogger(deviceName: notificationManager.address.name, runID: runID, clearExistingLog: Utils.clearExistingLog)
     }
     
     func start() {

@@ -98,7 +98,7 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
         notificationManager.blocked = true
         centrals.insert(central)
         peripheralManager.setDesiredConnectionLatency(.low, for: central)
-        notificationManager.transmitNotifications()
+        notificationManager.transmit()
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
@@ -131,6 +131,6 @@ class PeripheralManagerDelegate: NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         Logger.peripheral.debug("\(#function):toUpdateSubscribers")
-        notificationManager.transmitNotifications()
+        notificationManager.transmit()
     }
 }

@@ -63,16 +63,17 @@ struct Dimensions {
 struct Utils {
     
     static let addressBook: [Address] = [
-        Address("XVQ6uh5nTLN", name: "Simon")!,
-        Address("3NHph2xbJS4", name: "A")!,
-        Address("36BP1FRmt8N", name: "B")!,
-        Address("Mm79DuurhxB", name: "D")!
+        Address("VQRugMonJ8c", name: "Simon")!,
+        Address("LW1g5mkLaRr", name: "A")!,
+        Address("A1RpgbwctFu", name: "B")!,
+        Address("dooKDyFBYdK", name: "D")!
     ]
 
+    static let suffixLength: Int = 5
     static let initialCountdownTime: Int = 3
+    static let clearExistingLog = true
     static let resetAddressContext = false
     static let countHops = true
-    static let suffixLength: Int = 5
     
     static func generateText(with length: Int, testPattern: Bool = true) -> String {
         var result = ""

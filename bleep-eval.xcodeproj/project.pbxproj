@@ -49,6 +49,8 @@
 		F4369ED92BE549E000852AEC /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		F45058DB2C1B8E5100DCE851 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
 		F4711FBC2BE56443007FEACD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F476C11A2C5D705500C6B4BB /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		F476C11B2C5D705500C6B4BB /* THESIS_GERMAN.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = THESIS_GERMAN.pdf; sourceTree = "<group>"; };
 		F484D7C02BEE4D6E0070E613 /* ConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManager.swift; sourceTree = "<group>"; };
 		F4D740922C2C53CC0035A8AE /* Evaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Evaluation.swift; sourceTree = "<group>"; };
 		F4D839AD2C175D4B00D1CF21 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
@@ -88,6 +90,8 @@
 		F4369EC62BE549DF00852AEC = {
 			isa = PBXGroup;
 			children = (
+				F476C11A2C5D705500C6B4BB /* LICENSE */,
+				F476C11B2C5D705500C6B4BB /* THESIS_GERMAN.pdf */,
 				F41242062BEAAF4200B59628 /* README.md */,
 				F4369ED12BE549DF00852AEC /* bleep-eval */,
 				F4369ED02BE549DF00852AEC /* Products */,

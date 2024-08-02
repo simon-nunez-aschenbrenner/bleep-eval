@@ -5,7 +5,6 @@
 //  Created by Simon Núñez Aschenbrenner on 13.06.24.
 //
 
-import CoreBluetooth
 import Foundation
 import OSLog
 
@@ -63,9 +62,9 @@ struct Dimensions {
 struct Utils {
     
     static let addressBook: [Address] = [
-        Address("VQRugMonJ8c", name: "Simon")!,
-        Address("LW1g5mkLaRr", name: "A")!,
-        Address("A1RpgbwctFu", name: "B")!,
+        Address("VQRugMonJ8c", name: "A")!,
+        Address("LW1g5mkLaRr", name: "B")!,
+        Address("A1RpgbwctFu", name: "C")!,
         Address("dooKDyFBYdK", name: "D")!
     ]
 

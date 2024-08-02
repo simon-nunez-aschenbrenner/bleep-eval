@@ -140,7 +140,7 @@ struct SimulationView: View {
                 
                 // MARK: TTL
                 
-                Stepper("Maximum TTL: \(notificationTimeToLiveFactor) minutes", value: $notificationTimeToLiveFactor, in: 1...16)
+                Stepper(notificationTimeToLiveFactor > 1 ? "Maximum TTL: \(notificationTimeToLiveFactor) minutes" : "Maximum TTL: 1 minute", value: $notificationTimeToLiveFactor, in: 1...16)
                     .font(.custom(Font.BHTCaseMicro.Regular, size: Font.Size.Text))
                     .foregroundColor(Color("bleepPrimary"))
                     .disabled(notificationManager.simulator.isRunning)
